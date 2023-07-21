@@ -2,21 +2,13 @@ import re
 import yt_dlp
 import requests
 
-YDL_OPTIONS_SEARCH = {
+YDL_OPTIONS_URL = {
    'format': 'bestaudio/best', 
    'noplaylist': 'True', 
    'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
    'noplaylist': True,
    'ignoreerrors': False,
    'no_warnings': True,
-   'default_search': 'auto',
-   'source_address': '0.0.0.0'
-}
-
-YDL_OPTIONS_URL = {
-   'format': 'bestaudio/best', 
-   'noplaylist': 'True', 
-   'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
 }
 
 class ExtractManager():   
@@ -32,7 +24,7 @@ class ExtractManager():
       return self.audioData
 
    def getFromText(self, textSource: str = '') -> dict:
-      self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_SEARCH).extract_info(url=textSource, download=False)
+      self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_URL).extract_info(url=f'ytsearch:{textSource}', download=False)['entries'][0]
 
       self.audioData = dict([('title', self.intermidiateData['title']),
                              ('author', self.intermidiateData['channel']),
@@ -57,8 +49,10 @@ class SearchManager(ExtractManager):
    def audioSearch(self, searchQuery: str = '') -> dict | None:
       self.processedRequest = self.filterQuery(searchQuery)
 
-      if re.match(r"http.://", self.processedRequest) is not None: return self.getFromURL()
-      else: return self.getFromText()
+      if re.match(r"http.://", self.processedRequest) is not None: 
+         return self.getFromURL(sourceUrl=self.processedRequest)
+      else:
+         return self.getFromText(textSource=self.processedRequest)
    
    def audioList(self, searchQuery: str = '') -> list[dict]:
       self.processedRequest = self.filterQuery(searchQuery)

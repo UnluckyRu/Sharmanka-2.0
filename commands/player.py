@@ -26,25 +26,30 @@ class Player(commands.Cog):
             print('[BOT] I can\'t connect to the voice channel!')
       else: print('[BOT] All condition complete already!')
 
-   @commands.command(name='play', with_app_command=True, aliases=['p'])
+   @commands.command(name='play', aliases=['p'])
    async def play(self, context: commands.Context, *, searchRequest: str = '') -> None:
       await self.basicsConnect(context=context)
+
+      notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
 
       try: 
          self.audioObject = SearchManager().audioSearch(searchQuery=searchRequest)
       except:
-         print(f'Error! {searchRequest}')
+         await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while searching for your track!'))
 
       if context.voice_client.is_playing():
          self.queueList.append(self.audioObject)
-         await context.channel.send(embed=embedPackage("New song added in queue", 
-                                                      f"Title: {self.audioObject['title']} \n\n Duration: {self.audioObject['duration']}",
-                                                      thumbnail=self.audioObject['thumbnail']))
+         await notificationMessage.edit(embed=embedPackage("New song added in queue", 
+                                                           f"Title: {self.audioObject['title']} \n" +
+                                                           f"Author: {self.audioObject['author']}\n\n" +
+                                                           f"Duration: {self.audioObject['duration']}", 
+                                                           thumbnail=self.audioObject['thumbnail']))
       else:
-         await context.channel.send(embed=embedPackage('Song added', 
-                                                      f"Title: {self.audioObject['title']} \n\n"+
-                                                      f"Duration: {self.audioObject['duration']}",
-                                                      thumbnail=self.audioObject['thumbnail']))
+         await notificationMessage.edit(embed=embedPackage('Song added', 
+                                                           f"Title: {self.audioObject['title']} \n" +
+                                                           f"Author: {self.audioObject['author']}\n\n" +
+                                                           f"Duration: {self.audioObject['duration']}",
+                                                           thumbnail=self.audioObject['thumbnail']))
          
          context.voice_client.play(FFmpegPCMAudio(source=self.audioObject['audioSource'], **FFMPEG_OPTIONS, executable='ffmpeg'), after=lambda x=None: self.queuePlay(context=context))
 
@@ -52,7 +57,7 @@ class Player(commands.Cog):
    async def searchPlay(self, context: commands.Context, *, searchRequest: str = ''):
       await self.basicsConnect(context=context)
 
-      notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a few minmutes!'))
+      notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
 
       try:
          self.audioSearchList = SearchManager().audioList(searchQuery=searchRequest)
@@ -72,14 +77,17 @@ class Player(commands.Cog):
 
       if context.voice_client.is_playing():
          self.queueList.append(self.externalAudioObject)
-         await context.channel.send(embed=embedPackage("New song added in queue", 
-                                                      f"Title: {self.externalAudioObject['title']} \n\n Duration: {self.externalAudioObject['duration']}",
-                                                      thumbnail=self.externalAudioObject['thumbnail']))
+         await notificationMessage.edit(embed=embedPackage("New song added in queue", 
+                                                           f"Title: {self.externalAudioObject['title']} \n" +
+                                                           f"Author: {self.externalAudioObject['author']}\n\n" +
+                                                           f"Duration: {self.externalAudioObject['duration']}", 
+                                                           thumbnail=self.externalAudioObject['thumbnail']))
       else:
          await notificationMessage.edit(embed=embedPackage('Song added', 
-                                                      f"Title: {self.externalAudioObject['title']} \n\n"+
-                                                      f"Duration: {self.externalAudioObject['duration']}",
-                                                      thumbnail=self.externalAudioObject['thumbnail']))
+                                                           f"Title: {self.externalAudioObject['title']} \n" +
+                                                           f"Author: {self.externalAudioObject['author']}\n\n" +
+                                                           f"Duration: {self.externalAudioObject['duration']}",
+                                                           thumbnail=self.externalAudioObject['thumbnail']))
          
          context.voice_client.play(FFmpegPCMAudio(source=self.externalAudioObject['audioSource'], **FFMPEG_OPTIONS, executable='ffmpeg'), after=lambda x=None: self.queuePlay(context=context))
 
