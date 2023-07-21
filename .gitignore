@@ -144,7 +144,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# Individual files
+# Testing instrunemts
+test/
+testing/
 testing.py
 
 # PyCharm
