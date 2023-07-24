@@ -3,11 +3,9 @@ import yt_dlp
 import requests
 
 YDL_OPTIONS_URL = {
-   'format': 'bestaudio/best', 
-   'noplaylist': 'True', 
+   'format': 'bestaudio/best',
    'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
-   'noplaylist': True,
-   'ignoreerrors': False,
+   'ignoreerrors': True,
    'no_warnings': True,
 }
 
@@ -33,6 +31,19 @@ class ExtractManager():
                              ('audioSource', self.intermidiateData['url'])])
       
       return self.audioData
+   
+   def getFromPlaylist(self, playlistSource: str = '') -> list[dict[str]]:
+      self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_URL).extract_info(url=playlistSource, download=False)
+
+      self.playlistData = {'title': self.intermidiateData['title'], 
+                           'thumbnail': self.intermidiateData['thumbnails'][0]['url'], 
+                           'playlist': [dict([('title', s['title']), 
+                                             ('author', s['channel']), 
+                                             ('duration', s['duration_string']), 
+                                             ('thumbnail', s['thumbnail'].replace('maxresdefault', 'default')), 
+                                             ('audioSource', s['url'])]) for i, s in enumerate(self.intermidiateData['entries']) if s is not None]}
+      
+      return self.playlistData
 
 class SearchManager(ExtractManager):
    def __init__(self) -> None:
@@ -54,7 +65,7 @@ class SearchManager(ExtractManager):
       else:
          return self.getFromText(textSource=self.processedRequest)
    
-   def audioList(self, searchQuery: str = '') -> list[dict]:
+   def audioList(self, searchQuery: str = '') -> list[dict[str]]:
       self.processedRequest = self.filterQuery(searchQuery)
       
       self.findRequest = requests.get(f"https://www.youtube.com/results?search_query={self.processedRequest}").text
