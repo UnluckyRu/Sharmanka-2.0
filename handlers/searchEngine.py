@@ -1,17 +1,21 @@
 import re
 import yt_dlp
+import grequests
 import requests
 
-YDL_OPTIONS_URL = {
-   'format': 'bestaudio/best',
-   'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
+import time
+
+YDL_OPTIONS_URL = { 
    'ignoreerrors': True,
    'no_warnings': True,
+   'format': 'bestaudio/best',
+   'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
 }
 
-class ExtractManager():   
+class ExtractManager():
    def getFromURL(self, sourceUrl: str = '') -> dict:
       self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_URL).extract_info(url=sourceUrl, download=False)
+      print('\n')
 
       self.audioData = dict([('title', self.intermidiateData['title']),
                              ('author', self.intermidiateData['channel']),
@@ -23,6 +27,7 @@ class ExtractManager():
 
    def getFromText(self, textSource: str = '') -> dict:
       self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_URL).extract_info(url=f'ytsearch:{textSource}', download=False)['entries'][0]
+      print('\n')
 
       self.audioData = dict([('title', self.intermidiateData['title']),
                              ('author', self.intermidiateData['channel']),
@@ -34,6 +39,7 @@ class ExtractManager():
    
    def getFromPlaylist(self, playlistSource: str = '') -> list[dict[str]]:
       self.intermidiateData = yt_dlp.YoutubeDL(YDL_OPTIONS_URL).extract_info(url=playlistSource, download=False)
+      print('\n')
 
       self.playlistData = {'title': self.intermidiateData['title'], 
                            'thumbnail': self.intermidiateData['thumbnails'][0]['url'], 
@@ -46,8 +52,6 @@ class ExtractManager():
       return self.playlistData
 
 class SearchManager(ExtractManager):
-   def __init__(self) -> None:
-      self.requestsList = []
 
    def filterQuery(self, initialRequest: str = '') -> str:
       self.convertionAlphabet = (u"абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ", u"abvgdeejzijklmnoprstufhzcss_y_euaABVGDEEJZIJKLMNOPRSTUFHZCSS_Y_EUA")
@@ -68,16 +72,19 @@ class SearchManager(ExtractManager):
    def audioList(self, searchQuery: str = '') -> list[dict[str]]:
       self.processedRequest = self.filterQuery(searchQuery)
       
+      start = time.time()
       self.findRequest = requests.get(f"https://www.youtube.com/results?search_query={self.processedRequest}").text
       self.gettingResponse = re.findall(r"watch\?v=(\S{11})", self.findRequest)
-      self.sortedUrls = ['https://www.youtube.com/watch?v='+ i for n, i in enumerate(self.gettingResponse) if i not in self.gettingResponse[:n]][:10]
+      self.sortedUrls = ['https://www.youtube.com/watch?v='+ id for index, id in enumerate(self.gettingResponse) if id not in self.gettingResponse[:index]][:10]
+      self.getInfoUrls = [f'https://noembed.com/embed?dataType=json&url={self.sortedUrls[index]}' for index in range(len(self.sortedUrls))]
 
-      for i in range(len(self.sortedUrls)):
-         self.requestsList.append(requests.get(f'https://noembed.com/embed?dataType=json&url={self.sortedUrls[i]}').json())
+      self.request = (grequests.get(self.getInfoUrls[n]) for n in range(len(self.sortedUrls)))
+      self.response = [source.json() for source in grequests.map(self.request)]
 
-      self.titlesList = [self.requestsList[n]['title'] for n in range(len(self.sortedUrls))]
-      self.authorsList = [self.requestsList[n]['author_name'] for n in range(len(self.sortedUrls))]
+      self.titlesList = [infoString['title'] for infoString in self.response]
+      self.authorsList = [infoString['author_name'] for infoString in self.response]
 
       self.audioSource = [dict([('title', self.titlesList[i]), ('author', self.authorsList[i]), ('url', self.sortedUrls[i])]) for i in range(len(self.sortedUrls))]
+      print(f'Request complite for: {format(time.time()-start, ".3f")}')
 
       return self.audioSource

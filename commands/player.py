@@ -20,7 +20,8 @@ class Player(commands.Cog):
          self.queueList = {f'{context.guild.id}': []}
 
       if context.author.voice is None:
-         return await context.channel.send(embed=embedPackage(title='Connect to the voice channel!', description='Else i can\'t playing music for you!'))
+         await context.channel.send(embed=embedPackage(title='Connect to the voice channel!', description='Else i can\'t playing music for you!'))
+         return True
       elif context.voice_client is None:
          try:
             await context.author.voice.channel.connect()
@@ -31,10 +32,9 @@ class Player(commands.Cog):
 
    @commands.command(name='play', aliases=['p'])
    async def play(self, context: commands.Context, *, searchRequest: str = '') -> None:
-      await self.basicsConnect(context=context)
+      if await self.basicsConnect(context): return
 
       notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
-
       try: 
          self.audioObject = SearchManager().audioSearch(searchQuery=searchRequest)
       except:
@@ -59,7 +59,7 @@ class Player(commands.Cog):
 
    @commands.command(name='searchPlay', aliases=['sp'])
    async def searchPlay(self, context: commands.Context, *, searchRequest: str = ''):
-      await self.basicsConnect(context=context)
+      if await self.basicsConnect(context): return
 
       notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
 
@@ -100,7 +100,7 @@ class Player(commands.Cog):
 
    @commands.command(name='playlist', aliases=['pp'])
    async def playlistPlay(self, context: commands.Context, *, searchRequest: str = ''):
-      await self.basicsConnect(context=context)
+      if await self.basicsConnect(context): return
       
       notificationMessage = await context.send(embed=embedPackage('Downloading playlist...', 
                                                                   'Please wait! \n'
@@ -129,7 +129,7 @@ class Player(commands.Cog):
                                                            f"Title: {self.externalAudioObject['title']}\n\n "
                                                            f"Amount: {len(self.externalAudioObject)}",  
                                                            thumbnail=self.externalAudioObject['thumbnail']))
-         self.queuePlay(context=context)
+         self.queuePlay(context)
 
    @commands.command(name='queue', aliases=['q'])
    async def queue(self, context: commands.Context):
@@ -162,7 +162,7 @@ class Player(commands.Cog):
    async def skip(self, context: commands.Context):
       context.voice_client.stop()
       await context.channel.send(embed=embedPackage('Skipped', 'Track was skiped.\nEnjoy listening to the next tracks'))
-      self.queuePlay(context=context)
+      self.queuePlay(context)
       
    @commands.command(name='leave', aliases=['lv'])
    async def leave(self, context: commands.Context):
