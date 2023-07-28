@@ -1,8 +1,7 @@
 import re
 import yt_dlp
-import grequests
-import requests
-
+import aiohttp
+import asyncio
 import time
 
 YDL_OPTIONS_URL = { 
@@ -52,6 +51,7 @@ class ExtractManager():
       return self.playlistData
 
 class SearchManager(ExtractManager):
+   def __init__(self): ...
 
    def filterQuery(self, initialRequest: str = '') -> str:
       self.convertionAlphabet = (u"абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ", u"abvgdeejzijklmnoprstufhzcss_y_euaABVGDEEJZIJKLMNOPRSTUFHZCSS_Y_EUA")
@@ -69,22 +69,26 @@ class SearchManager(ExtractManager):
       else:
          return self.getFromText(textSource=self.processedRequest)
    
-   def audioList(self, searchQuery: str = '') -> list[dict[str]]:
+   async def audioList(self, searchQuery: str = '') -> list[dict[str]]:
       self.processedRequest = self.filterQuery(searchQuery)
       
       start = time.time()
-      self.findRequest = requests.get(f"https://www.youtube.com/results?search_query={self.processedRequest}").text
+      async with aiohttp.ClientSession() as session:
+         async with session.get(f"https://www.youtube.com/results?search_query={self.processedRequest}") as response:
+            self.findRequest = await response.text()
+
       self.gettingResponse = re.findall(r"watch\?v=(\S{11})", self.findRequest)
-      self.sortedUrls = ['https://www.youtube.com/watch?v='+ id for index, id in enumerate(self.gettingResponse) if id not in self.gettingResponse[:index]][:10]
-      self.getInfoUrls = [f'https://noembed.com/embed?dataType=json&url={self.sortedUrls[index]}' for index in range(len(self.sortedUrls))]
+      self.sortedUrls = [f'https://www.youtube.com/watch?v={id}' for index, id in enumerate(self.gettingResponse) if id not in self.gettingResponse[:index]][:10]
+      self.getInfoUrls = [f'https://noembed.com/embed?dataType=json&url={self.sortedUrls[index]}' for index, _ in enumerate(self.sortedUrls)]
 
-      self.request = (grequests.get(self.getInfoUrls[n]) for n in range(len(self.sortedUrls)))
-      self.response = [source.json() for source in grequests.map(self.request)]
+      async with aiohttp.ClientSession() as session:
+         self.preTask = await asyncio.gather(*[session.get(self.getInfoUrls[index]) for index, _ in enumerate(self.getInfoUrls)])
+         self.fullTask = await asyncio.gather(*[source.json(content_type=None) for _, source in enumerate(self.preTask)])
 
-      self.titlesList = [infoString['title'] for infoString in self.response]
-      self.authorsList = [infoString['author_name'] for infoString in self.response]
+      self.titlesList = [infoString['title'] for _, infoString in enumerate(self.fullTask)]
+      self.authorsList = [infoString['author_name'] for _, infoString in enumerate(self.fullTask)]
 
-      self.audioSource = [dict([('title', self.titlesList[i]), ('author', self.authorsList[i]), ('url', self.sortedUrls[i])]) for i in range(len(self.sortedUrls))]
+      self.audioSource = [dict([('title', self.titlesList[i]), ('author', self.authorsList[i]), ('url', self.sortedUrls[i])]) for i, _ in enumerate(self.sortedUrls)]
       print(f'Request complite for: {format(time.time()-start, ".3f")}')
 
       return self.audioSource

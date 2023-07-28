@@ -18,12 +18,11 @@ class Bot(commands.Bot):
       intents.voice_states = True
 
       super().__init__(intents=intents, command_prefix=commands.when_mentioned_or(PREFIX))
+   
+   async def on_ready(self):
+      print('[BOT] Okay I\'m ready.')
 
 bot = Bot()
-
-@bot.event
-async def on_ready():
-   print('[BOT] Okay I\'m ready.')
 
 async def load_extensions():
    for commandfile in os.listdir('./commands'):

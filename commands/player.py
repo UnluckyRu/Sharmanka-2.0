@@ -17,7 +17,10 @@ class Player(commands.Cog):
 
    async def basicsConnect(self, context: commands.Context):
       if self.queueList.get(f'{context.guild.id}') is None:
-         self.queueList = {f'{context.guild.id}': []}
+         if self.queueList:
+            self.queueList.update({f'{context.guild.id}': []})
+         else:
+            self.queueList = {f'{context.guild.id}': []}
 
       if context.author.voice is None:
          await context.channel.send(embed=embedPackage(title='Connect to the voice channel!', description='Else i can\'t playing music for you!'))
@@ -25,10 +28,9 @@ class Player(commands.Cog):
       elif context.voice_client is None:
          try:
             await context.author.voice.channel.connect()
-            return print('[BOT] All condition complete now!')
-         except:
-            print('[BOT] I can\'t connect to the voice channel!')
-      else: print('[BOT] All condition complete already!')
+            return False
+         except: return False
+      else: return False
 
    @commands.command(name='play', aliases=['p'])
    async def play(self, context: commands.Context, *, searchRequest: str = '') -> None:
@@ -64,7 +66,7 @@ class Player(commands.Cog):
       notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
 
       try:
-         self.audioSearchList = SearchManager().audioList(searchQuery=searchRequest)
+         self.audioSearchList = await SearchManager().audioList(searchQuery=searchRequest)
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while searching for your track!'), view=None)
          return
@@ -135,7 +137,7 @@ class Player(commands.Cog):
    async def queue(self, context: commands.Context):
       if not self.queueList.get(f'{context.guild.id}'): 
          await context.channel.send(embed=embedPackage('Queue empty', 'You can play your audio using:  `*play(p) {song}` or `*sp {song}`'))
-         return 0
+         return
       
       await context.channel.send(embed=embedPackage(f'{len(self.queueList[f"{context.guild.id}"])} songs in queue:', 
                                                    ''.join(str(index+1)+'.'+'`'+'['+queueListElement['duration']+']'+'` '+queueListElement['title']+'\n' for index, queueListElement in enumerate(self.queueList[f'{context.guild.id}']))))
@@ -154,6 +156,7 @@ class Player(commands.Cog):
 
    @commands.command(name='stop', aliases=['s'])
    async def stop(self, context: commands.Context):
+      print(self.queueList)
       context.voice_client.stop()
       self.queueList[f'{context.guild.id}'].clear()
       await context.channel.send(embed=embedPackage('Stopped', 'You can\'t recover queue.\nTo start listening using:  `*p(lay) {song}` or `*sp {song}`'))
@@ -161,8 +164,7 @@ class Player(commands.Cog):
    @commands.command(name='skip', aliases=['sk'])
    async def skip(self, context: commands.Context):
       context.voice_client.stop()
-      await context.channel.send(embed=embedPackage('Skipped', 'Track was skiped.\nEnjoy listening to the next tracks'))
-      self.queuePlay(context)
+      await context.channel.send(embed=embedPackage('Skipped', 'Track was skiped.\nEnjoy listening to the next tracks!'))
       
    @commands.command(name='leave', aliases=['lv'])
    async def leave(self, context: commands.Context):
@@ -175,7 +177,7 @@ class Player(commands.Cog):
 
    def queuePlay(self, context: commands.Context) -> None:
       if not self.queueList.get(f'{context.guild.id}'): return
-      recievedAudioObject = self.queueList[f'{context.guild.id}'].pop(0)
+      recievedAudioObject = self.queueList.get(f'{context.guild.id}').pop(0)
       context.voice_client.play(FFmpegPCMAudio(source=recievedAudioObject['audioSource'], **FFMPEG_OPTIONS, executable='ffmpeg'), after=lambda x=None: self.queuePlay(context))
 
 def embedPackage(title: str = '', description: str = '', footer: str = '', thumbnail: str = '', placeTimestamp: bool = False):
