@@ -1,9 +1,6 @@
 import discord
 from discord.ext import commands
-from discord.ui import Select, View
-from discord import FFmpegPCMAudio, SelectOption
-
-from datetime import datetime
+from discord import FFmpegPCMAudio
 
 from handlers.searchEngine import ExtractManager, SearchManager
 from handlers.interaction import audioMenu, InteractiveView
@@ -16,29 +13,35 @@ class Player(commands.Cog):
       self.queueList = {}
 
    async def basicsConnect(self, context: commands.Context):
-      if self.queueList.get(f'{context.guild.id}') is None:
-         if self.queueList:
-            self.queueList.update({f'{context.guild.id}': []})
-         else:
-            self.queueList = {f'{context.guild.id}': []}
+      match self.queueList.get(f'{context.guild.id}'):
+         case None:
+            if self.queueList:
+               self.queueList.update({f'{context.guild.id}': []})
+            else:
+               self.queueList = {f'{context.guild.id}': []}
 
-      if context.author.voice is None:
-         await context.channel.send(embed=embedPackage(title='Connect to the voice channel!', description='Else i can\'t playing music for you!'))
-         return True
-      elif context.voice_client is None:
-         try:
-            await context.author.voice.channel.connect()
-            return False
-         except: return False
-      else: return False
+      match context.author.voice:
+         case None:
+            await context.channel.send(embed=embedPackage(title='Connect to the voice channel!', description='Else i can\'t playing music for you!'))
+            return True
+         case _:
+            match context.voice_client:
+               case None:
+                  try: 
+                     await context.author.voice.channel.connect()
+                     return False
+                  except: 
+                     return False
+               case _: 
+                  return False
 
    @commands.command(name='play', aliases=['p'])
    async def play(self, context: commands.Context, *, searchRequest: str = '') -> None:
       if await self.basicsConnect(context): return
 
       notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
-      try: 
-         self.audioObject = SearchManager().audioSearch(searchQuery=searchRequest)
+      try:
+         self.audioObject = SearchManager(searchRequest).findAudio()
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while searching for your track!'))
          return
@@ -46,13 +49,13 @@ class Player(commands.Cog):
       if context.voice_client.is_playing():
          self.queueList[f'{context.guild.id}'].append(self.audioObject)
          await notificationMessage.edit(embed=embedPackage("New song added in queue", 
-                                                           f"Title: {self.audioObject['title']} \n" +
+                                                           f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
                                                            f"Uploader: {self.audioObject['author']}\n\n" +
                                                            f"Duration: {self.audioObject['duration']}", 
                                                            thumbnail=self.audioObject['thumbnail']))
       else:
          await notificationMessage.edit(embed=embedPackage('Song added', 
-                                                           f"Title: {self.audioObject['title']} \n" +
+                                                           f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
                                                            f"Uploader: {self.audioObject['author']}\n\n" +
                                                            f"Duration: {self.audioObject['duration']}",
                                                            thumbnail=self.audioObject['thumbnail']))
@@ -61,12 +64,12 @@ class Player(commands.Cog):
 
    @commands.command(name='searchPlay', aliases=['sp'])
    async def searchPlay(self, context: commands.Context, *, searchRequest: str = ''):
-      if await self.basicsConnect(context): return
+      if await self.basicsConnect(context): return 0
 
       notificationMessage = await context.send(embed=embedPackage('Searching tracks...', 'Please wait! \n It may take a couple minutes!'))
 
       try:
-         self.audioSearchList = await SearchManager().audioList(searchQuery=searchRequest)
+         self.audioSearchList = await SearchManager(searchRequest).audioList()
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while searching for your track!'), view=None)
          return
@@ -78,7 +81,7 @@ class Player(commands.Cog):
 
       await notificationMessage.edit(embed=embedPackage('Starting track...'), view=None)
       try:
-         self.externalAudioObject = ExtractManager().getFromURL(sourceUrl=self.audioSearchList[int(self.selectMenu.values[0])]['url'])
+         self.externalAudioObject = ExtractManager().getFromSource(sourceQuery=self.audioSearchList[int(self.selectMenu.values[0])]['url'], queryType='linkSource')
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'When starting your track, something went wrong! \n Changing your search term may help.'), view=None)
          return
@@ -87,13 +90,13 @@ class Player(commands.Cog):
 
       if context.voice_client.is_playing():
          await notificationMessage.edit(embed=embedPackage("New song added in queue", 
-                                                           f"Title: {self.externalAudioObject['title']} \n" +
+                                                           f"Title: [{self.externalAudioObject['title']}]({self.audioSearchList[int(self.selectMenu.values[0])]['url']}) \n" +
                                                            f"Uploader: {self.externalAudioObject['author']}\n\n" +
                                                            f"Duration: {self.externalAudioObject['duration']}", 
                                                            thumbnail=self.externalAudioObject['thumbnail']))
       else:
          await notificationMessage.edit(embed=embedPackage('Song added', 
-                                                           f"Title: {self.externalAudioObject['title']} \n" +
+                                                           f"Title: [{self.externalAudioObject['title']}]({self.audioSearchList[int(self.selectMenu.values[0])]['url']}) \n" +
                                                            f"Uploader: {self.externalAudioObject['author']}\n\n" +
                                                            f"Duration: {self.externalAudioObject['duration']}",
                                                            thumbnail=self.externalAudioObject['thumbnail']))
@@ -109,15 +112,15 @@ class Player(commands.Cog):
                                                                   'It may take a couple minutes! \n'
                                                                   '`Unavailable tracks will be skipped automatically!`'))
       try:
-         self.externalAudioObject = ExtractManager().getFromPlaylist(playlistSource=searchRequest)
+         self.externalAudioObject = SearchManager(searchRequest).findAudio()
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while downloading for your playlist!'))
          return
 
       await notificationMessage.edit(embed=embedPackage('Adding song in queue...'))
       try:
-         self.queueList[f'{context.guild.id}'].append(self.externalAudioObject['playlist'])
-      except:
+         list(map(self.queueList[f'{context.guild.id}'].append, self.externalAudioObject['playlist']))
+      except: 
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while insert songs into queue!'))
          return
 
@@ -156,7 +159,6 @@ class Player(commands.Cog):
 
    @commands.command(name='stop', aliases=['s'])
    async def stop(self, context: commands.Context):
-      print(self.queueList)
       context.voice_client.stop()
       self.queueList[f'{context.guild.id}'].clear()
       await context.channel.send(embed=embedPackage('Stopped', 'You can\'t recover queue.\nTo start listening using:  `*p(lay) {song}` or `*sp {song}`'))
