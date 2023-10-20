@@ -22,17 +22,20 @@ class Bot(commands.Bot):
    async def on_ready(self):
       print('[BOT] Okay I\'m ready.')
 
+   async def load_extensions(self):
+      for commandfile in os.listdir('./commands'):
+         if commandfile.endswith('.py'):
+            await bot.load_extension(f'commands.{commandfile[:-3]}')
+      print('[BOT] All additional commands load!')
+
+   async def mainSetup(self):
+      async with bot:
+         await self.load_extensions()
+         await self.start(TOKEN)
+
 bot = Bot()
 
-async def load_extensions():
-   for commandfile in os.listdir('./commands'):
-      if commandfile.endswith('.py'):
-         await bot.load_extension(f'commands.{commandfile[:-3]}')
-   print('[BOT] All additional commands load!')
-
-async def mainSetup():
-   async with bot:
-      await load_extensions()
-      await bot.start(TOKEN)
-
-asyncio.run(mainSetup())
+if __name__ == "__main__":
+   asyncio.run(bot.mainSetup())
+else:
+   raise Exception("You trying start main file like a additional")
