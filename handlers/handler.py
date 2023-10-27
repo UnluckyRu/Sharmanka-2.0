@@ -1,8 +1,13 @@
-class Handlers():
+import discord
+from discord.ext import commands
+
+class TimeHandler():
    def __init__(self) -> None:
       pass
 
    def timeConverter(self, time: int) -> str:
+      if not isinstance(time, int): time = int(time)
+
       self.seconds = time % 60
       self.minutes = (time // 60) % 60
       self.hours = time // 3600

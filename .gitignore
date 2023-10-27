@@ -151,6 +151,7 @@ testing.py
 
 # Local run instruments
 botStart.bat
+utilities/
 
 # PyCharm
 #  JetBrains specific template is maintainted in a separate JetBrains.gitignore that can

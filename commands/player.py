@@ -21,7 +21,6 @@ class Player(commands.Cog):
 
    async def queuePlay(self, context: commands.Context) -> None:
       self.timerToLeave = 0
-
       if type(self.leaveObject) is not LeaveControl:
          self.leaveObject = LeaveControl(context, context.voice_client, embedPackage, self.timerToLeave)
 
@@ -41,15 +40,17 @@ class Player(commands.Cog):
                self.leaveObject = None
                return
 
-   @commands.command(name='play', aliases=['p'])
+   @commands.command(name='play', aliases=['p', 'vp', 'yp', 'P', 'VP', 'YP'])
    async def play(self, context: commands.Context, *, searchRequest: str = '') -> None:
       self.context = context
+      self.platform = context.message.content.split(' ')[0].replace('-', '')
+
       self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
       if f'{context.guild.id}' not in self.queueList: return
 
       notificationMessage = await context.send(embed=embedPackage('Searching for your request...', 'Please wait! \n It may take a couple minutes!'))
       try:
-         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest)
+         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest, platform=self.platform)
       except:
          await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while searching from your query!'))
          return
@@ -74,7 +75,29 @@ class Player(commands.Cog):
       if not context.voice_client.is_playing() and not context.voice_client.is_paused():
          await self.queuePlay(context=context)
 
-   @commands.command(name='searchPlay', aliases=['sp'])
+   @commands.command(name='radio', aliases=['live'])
+   async def radio(self, context: commands.Context, *, searchRequest: str = ''):
+      self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
+      if f'{context.guild.id}' not in self.queueList: return
+
+      notificationMessage = await context.send(embed=embedPackage('Trying start live stream...', 'Please wait! \n It may take a couple minutes!'))
+      try:
+         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest, loop=self.bot.loop)
+      except:
+         await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while start live!'))
+         return
+      
+      self.queueList[f'{context.guild.id}'].append(self.audioObject)
+      await notificationMessage.edit(embed=embedPackage("Song added in queue", 
+                                                        f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
+                                                        f"Uploader: {self.audioObject['author']}\n\n" +
+                                                        f"Duration: {self.audioObject['duration']}", 
+                                                        thumbnail=self.audioObject['thumbnail']))
+      
+      if not context.voice_client.is_playing() and not context.voice_client.is_paused():  
+         await self.queuePlay(context=context)
+
+   @commands.command(name='searchPlay', aliases=['sp', 'SP'])
    async def searchPlay(self, context: commands.Context, *, searchRequest: str = ''):
       self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
       if f'{context.guild.id}' not in self.queueList: return
@@ -108,89 +131,7 @@ class Player(commands.Cog):
       if not context.voice_client.is_playing():
          await self.queuePlay(context=context)
 
-   @commands.command(name='radio', aliases=['live'])
-   async def radio(self, context: commands.Context, *, searchRequest: str = ''):
-      self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
-      if f'{context.guild.id}' not in self.queueList: return
-
-      notificationMessage = await context.send(embed=embedPackage('Trying start live stream...', 'Please wait! \n It may take a couple minutes!'))
-      try:
-         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest, loop=self.bot.loop)
-      except:
-         await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while start live!'))
-         return
-      
-      self.queueList[f'{context.guild.id}'].append(self.audioObject)
-      await notificationMessage.edit(embed=embedPackage("Song added in queue", 
-                                                        f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
-                                                        f"Uploader: {self.audioObject['author']}\n\n" +
-                                                        f"Duration: {self.audioObject['duration']}", 
-                                                        thumbnail=self.audioObject['thumbnail']))
-      
-      if not context.voice_client.is_playing() and not context.voice_client.is_paused():  
-         await self.queuePlay(context=context)
-
-   @commands.command(name='vkplay', aliases=['vp'])
-   async def vkAudio(self, context: commands.Context, *, searchRequest: str = ''):
-      self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
-      if f'{context.guild.id}' not in self.queueList: return
-
-      notificationMessage = await context.send(embed=embedPackage('Trying start VK audio...', 'Please wait! \n It may take a couple minutes!'))
-      try:
-         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest, platform='Vkontakte')
-      except:
-         await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while start your audio!'))
-         return
-
-      match self.queryType:
-         case 'playlist':
-            self.queueList[f'{context.guild.id}'].extend(self.audioObject['playlist'])
-            await notificationMessage.edit(embed=embedPackage("Playlist songs added in queue",
-                                                              f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']})\n\n "
-                                                              f"Amount: **{len(self.audioObject['playlist'])}**",  
-                                                              thumbnail=self.audioObject['thumbnail']))
-         case 'linkSource' | 'textSource':
-            self.queueList[f'{context.guild.id}'].append(self.audioObject)
-            await notificationMessage.edit(embed=embedPackage("Song added in queue", 
-                                                         f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
-                                                         f"Uploader: {self.audioObject['author']}\n\n" +
-                                                         f"Duration: {self.audioObject['duration']}", 
-                                                         thumbnail=self.audioObject['thumbnail']))
-      
-      if not context.voice_client.is_playing() and not context.voice_client.is_paused():  
-         await self.queuePlay(context=context)
-
-   @commands.command(name='ymplay', aliases=['yp'])
-   async def ymAudio(self, context: commands.Context, *, searchRequest: str = ''):
-      self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
-      if f'{context.guild.id}' not in self.queueList: return
-
-      notificationMessage = await context.send(embed=embedPackage('Trying start YANDEX audio...', 'Please wait! \n It may take a couple minutes!'))
-      try:
-         self.queryType, self.audioObject = await SearchManager().findAudio(searchQuery=searchRequest, platform='Yandex')
-      except:
-         await notificationMessage.edit(embed=embedPackage('Sorry!', 'Something went wrong while start your audio!'))
-         return
-
-      match self.queryType:
-         case 'playlist':
-            self.queueList[f'{context.guild.id}'].extend(self.audioObject['playlist'])
-            await notificationMessage.edit(embed=embedPackage("Playlist songs added in queue",
-                                                              f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']})\n\n "
-                                                              f"Amount: **{len(self.audioObject['playlist'])}**",  
-                                                              thumbnail=self.audioObject['thumbnail']))
-         case 'linkSource' | 'textSource':
-            self.queueList[f'{context.guild.id}'].append(self.audioObject)
-            await notificationMessage.edit(embed=embedPackage("Song added in queue", 
-                                                              f"Title: [{self.audioObject['title']}]({self.audioObject['rawSource']}) \n" +
-                                                              f"Uploader: {self.audioObject['author']}\n\n" +
-                                                              f"Duration: {self.audioObject['duration']}", 
-                                                              thumbnail=self.audioObject['thumbnail']))
-      
-      if not context.voice_client.is_playing() and not context.voice_client.is_paused():  
-         await self.queuePlay(context=context)
-
-   @commands.command(name='queue', aliases=['q'])
+   @commands.command(name='queue', aliases=['q', 'Q'])
    async def queue(self, context: commands.Context, *, pageNumber: int = 1):
       if not self.queueList.get(f'{context.guild.id}') and not context.voice_client.is_playing():
          await context.channel.send(embed=embedPackage('Queue empty', 'You can play your audio using:  `*play(p) {song}` or `*sp {song}`'))
@@ -211,37 +152,37 @@ class Player(commands.Cog):
                                                     self.pageList,
                                                     f"Pages: {self.currentPage} / {self.maxPages}" if len(self.queueList[f'{context.guild.id}']) != 0 else ''))
    
-   @commands.command(name='shuffle', aliases=['sh'])
+   @commands.command(name='shuffle', aliases=['sh', 'SH'])
    async def shuffleContent(self, context: commands.Context, *, amountShuffle: int = 1):
       if not self.queueList.get(f'{context.guild.id}'): return
       for i in range(amountShuffle):
          random.shuffle(self.queueList.get(f'{context.guild.id}'))
       await context.channel.send(embed=embedPackage('Shuffled!', 'The contents in the queue are mixed forever!'))
 
-   @commands.command(name='resume', aliases=['r'])
+   @commands.command(name='resume', aliases=['r', 'R'])
    async def resume(self, context: commands.Context):
       if not context.voice_client.is_playing():
          context.voice_client.resume()
          await context.channel.send(embed=embedPackage('Resumed', 'To pause listening using:  `*pause` or `*ps`'))
 
-   @commands.command(name='pause',aliases=['ps'])
+   @commands.command(name='pause',aliases=['ps', 'PS'])
    async def pause(self, context: commands.Context):
       if not context.voice_client.is_paused():
          context.voice_client.pause()
          await context.channel.send(embed=embedPackage('Paused', 'To continue listening using:  `*resume` or `*r`'))
 
-   @commands.command(name='stop', aliases=['s'])
+   @commands.command(name='stop', aliases=['s', 'S'])
    async def stop(self, context: commands.Context):
       context.voice_client.stop()
       self.queueList[f'{context.guild.id}'].clear()
       await context.channel.send(embed=embedPackage('Stopped', 'You can\'t recover queue.\nTo start listening using:  `*p(lay) {song}` or `*sp {song}`'))
       
-   @commands.command(name='skip', aliases=['sk'])
+   @commands.command(name='skip', aliases=['sk', 'SK'])
    async def skip(self, context: commands.Context):
       context.voice_client.stop()
-      await context.channel.send(embed=embedPackage('Skipped', 'Track was skiped.\nEnjoy listening to the next tracks!'))
+      await context.channel.send(embed=embedPackage('Skipped', f'Track was skiped.\nEnjoy listening to the next tracks!'))
       
-   @commands.command(name='leave', aliases=['lv'])
+   @commands.command(name='leave', aliases=['lv', 'LV'])
    async def leave(self, context: commands.Context):
       if not context.voice_client: return
       self.leaveObject = None
@@ -252,11 +193,11 @@ class Player(commands.Cog):
    @commands.command(name='botHelp', aliases=['h'])
    async def helpCommand(self, context: commands.Context):
       await context.channel.send(embed = embedPackage('List of commands:', 
-                                                      '`*p` - play song from YT or SC (link, text, playlist)\n'
+                                                      '`*p` - play song from YT (link, text, playlist, live)\n'
                                                       '`*vp` - play song from VK (link, text, playlist)\n'
                                                       '`*yp` - play song from Yandex Music (link, text, playlist, album)\n'
                                                       '`*sp` - seacrh and play song from title \n'
-                                                      '`*live` - play YT stream \n'
+                                                      '`*sh` - shuffle the content in queue \n'
                                                       '`*q` - watch what audio is playing and other in queue \n'
                                                       '`*sk` - skip the now playing song \n'
                                                       '`*r` - resume playing song after the pause \n'
@@ -267,10 +208,19 @@ class Player(commands.Cog):
    async def testNewComand(self, context: commands.Context, *, searchRequest: str = ''):
       self.queueList = await Connecter(context, self.queueList, embedPackage).autoConnect()
       #self.queryType, self.audioObject = await SearchManager(searchRequest).findAudio()
-
-      source = 'https://cs5-1v4.vkuseraudio.net/s/v1/acmp/kX8kYvYzFGAyjzAFn9DtdwBG3j0biw8E4mcFfhV6UW5OES3vqAM43_y50em1_g8kYFT1L-JO84bteqEq05ilmXeKN8ynUqBomKQzNBMyBV8ao809kAu4alBHvWoxL5uu4phSn8wZ8g3tZwc2CXak_8QliO7OoWpfyp0y0VOXg0p7kl1xvg.mp3?siren=1'
+      import requests
+      import yt_dlp
+      
       #print(self.audioObject['audioSource'].read())
-      context.voice_client.play(FFmpegPCMAudio(source=source, executable='ffmpeg', pipe=False))
+      def streamLive(xy):
+         x = requests.post('https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', json={"videoId": "4xDzrJKXOOY", "context": {"client": {"clientName": "WEB", "clientVersion": "2.20231020.00.01"}}}).json()
+         streamUrl = x['streamingData']['hlsManifestUrl']
+         return streamUrl
+      
+      self.loop = self.bot.loop or asyncio.get_event_loop()
+      x = await self.loop.run_in_executor(None, lambda: streamLive('123'))
+      print(x)
+      context.voice_client.play(FFmpegPCMAudio(source=x, **FFMPEG_OPTIONS, executable='ffmpeg'))
 
 def embedPackage(title: str = '', description: str = '', footer: str = '', thumbnail: str = '', placeTimestamp: bool = False):
    embedBlock = discord.Embed(title=title, description=description)

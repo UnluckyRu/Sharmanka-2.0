@@ -1,3 +1,4 @@
+import time
 import grequests
 import requests
 import xmltodict
@@ -6,9 +7,9 @@ import concurrent.futures
 from hashlib import md5
 
 try:
-   from .handler import Handlers
+   from .handler import TimeHandler
 except:
-   from handler import Handlers
+   from handler import TimeHandler
 
 class YmEngine():
    def __init__(self) -> None:
@@ -16,6 +17,7 @@ class YmEngine():
       self.HEADERS = {'User-Agent': 'Yandex-Music-API',
                       'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231',
                       'Authorization': 'OAuth y0_AgAAAAAmfsGrAAG8XgAAAADubN2RW7NfsgOGQgGQc_X2wyjgxa0E7yI',}
+      
       self.trackIDs = []
       self.playlistTracks = []
 
@@ -56,7 +58,7 @@ class YmEngine():
          self.trackTitle = source.json()['result'][0].get('title')
          self.uploaderName = source.json()['result'][0].get('artists')[0]['name']
          self.thumbnailLink = f"https://{source.json()['result'][0].get('albums')[0]['coverUri'].replace('%%', '200x200')}"
-         self.trackDuration = Handlers().millisecondsConverter(source.json()['result'][0].get('durationMs'))
+         self.trackDuration = TimeHandler().millisecondsConverter(source.json()['result'][0].get('durationMs'))
          self.tracksInfo.append([self.trackTitle, self.uploaderName, self.trackDuration, self.thumbnailLink])
 
       return self.tracksInfo
@@ -132,8 +134,6 @@ class YmGrabber(YmEngine):
 
       return [queryType, self.intermidiateData]
 
-'''import time
-
-start = time.time()
+'''start = time.time()
 print(YmGrabber().getFromYandex('https://music.yandex.ru/users/music-blog/playlists/2710', 'playlist'))
 print(time.time()-start)'''

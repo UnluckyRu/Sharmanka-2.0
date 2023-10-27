@@ -1,89 +1,207 @@
+import os
 import re
-import yt_dlp
-import aiohttp
+import time
+import json
+import js2py
 import asyncio
+import grequests
+import requests
 import concurrent.futures
 
-class YtEngine():
+from urllib.parse import unquote
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
+API_KEY = os.environ.get('YOUTUBE_API_TOKEN')
+
+try:
+   from .handler import TimeHandler
+except:
+   from handler import TimeHandler
+
+class Youtube():
    def __init__(self) -> None:
-      self.YDL_OPTIONS_URL = {'ignoreerrors': True, 
-                              'no_warnings': True, 
-                              'format': 'bestaudio/best', 
-                              'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'wav', 'preferredquality': '192'}],
-                              'cookies-from-browser': 'chrome',
-                              'quiet': True,}
+      self.audioSources = []
+      self.playlistTracks = []
+      self.videosIDs = []
+      self.checkUpdate()
 
-   def getAudioData(self, audioID):
-      self.audioData = yt_dlp.YoutubeDL(self.YDL_OPTIONS_URL).extract_info(f'https://www.youtube.com/watch?v={audioID}', download=False)
-      return {'title': self.audioData.get('title'), 'duration': self.audioData.get('duration_string'), 'audioSource': self.audioData.get('url')}
+   def checkUpdate(self) -> None:
+      print('[Utilite] Checking update...')
+      self.CIPHER_VERSION = (requests.get('https://www.youtube.com/iframe_api').text).split(';')[0].split('/')[5].replace('\\', '')
+      with open('./utilities/algorithmData.json', encoding='UTF-8') as file:
+         jsonData = json.load(file)
 
-   async def audioList(self) -> list[dict[str]]:
-      async with aiohttp.ClientSession() as session:
-         async with session.get(f"https://www.youtube.com/results?search_query={self.searchQuery}") as response:
-            self.findRequest = re.findall(r"watch\?v=(\S{11})", await response.text())
+      match jsonData['version'] != self.CIPHER_VERSION:
+         case True:
+            functionParser = (requests.get(f'https://www.youtube.com/s/player/{self.CIPHER_VERSION}/player_ias.vflset/en_US/base.js').text).replace('\n', '')
+            mainFunction = re.search(r"[\{\d\w\(\)\\.\=\"]*?;(..\...\(.\,..?\)\;){3,}.*?}", functionParser)[0]
+            subFunction = re.findall(r"var "+re.findall(r'(\w\w)\...', mainFunction)[0]+r"={.+?};", functionParser)[0]
 
-      self.sortedUrls = [f'https://www.youtube.com/watch?v={id}' for index, id in enumerate(self.findRequest) if id not in self.findRequest[:index]][:10]
-      self.getInfoUrls = [f'https://noembed.com/embed?dataType=json&url={self.sortedUrls[index]}' for index, _ in enumerate(self.sortedUrls)]
+            jsonData['timestamp'] = re.findall(r'signatureTimestamp:\S{5}', functionParser)[-1].replace('signatureTimestamp:', '')
+            jsonData['version'] = self.CIPHER_VERSION
+            jsonData['algorithm'] = f'{subFunction} {mainFunction};'
 
-      async with aiohttp.ClientSession() as session:
-         self.preTask = await asyncio.gather(*[session.get(self.getInfoUrls[index]) for index, _ in enumerate(self.getInfoUrls)])
-         self.fullTask = await asyncio.gather(*[source.json(content_type=None) for _, source in enumerate(self.preTask)])
+            with open('./utilities/algorithmData.json', 'w') as file:
+               json.dump(jsonData, file, ensure_ascii=False)
+      print('[Utilite] Update complete...')
 
-      self.titlesList = [infoString['title'] for _, infoString in enumerate(self.fullTask)]
-      self.authorsList = [infoString['author_name'] for _, infoString in enumerate(self.fullTask)]
-      self.audioSource = [dict([('title', self.titlesList[i]), ('author', self.authorsList[i]), ('url', self.sortedUrls[i])]) for i, _ in enumerate(self.sortedUrls)]
-   
-      return self.audioSource
-   
-   async def extractPlaylist(self, sourceQuery: str = ''):
-      self.playlistTracks: list = []
-      self.playlistHeader: dict = {}
+class YtEngine(Youtube):
+   def __init__(self) -> None:
+      super().__init__()
 
-      async with aiohttp.ClientSession() as session:
-         async with session.get(sourceQuery) as response:
-            audioIDS = list(set(re.findall(r"watch\?v=(\S{11})", await response.text())))
+      with open('./utilities/algorithmData.json', encoding='UTF-8') as file:
+         self.jsonData = json.load(file)
+
+   def getDirectLink(self, videoID: str = None) -> str:
+      self.DATA = {
+         "videoId": f"{videoID}",
+         "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
+         "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}}
+      
+      baseRequest = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=self.DATA).json()
+
+      try:
+         completeUrl = baseRequest['streamingData']['adaptiveFormats'][-4]['url']
+      except KeyError:
+         encodeSignature = baseRequest['streamingData']['adaptiveFormats'][-4]['signatureCipher']
+         signature, _, rawUrl = encodeSignature.split('&')
+         rawUrl = unquote(rawUrl.replace('url=', '')).split('Clmt')
+         signature = unquote(signature.replace('s=', ''))
+
+         decodeSignature = js2py.eval_js(self.jsonData['algorithm'])
+         completeUrl = f"{rawUrl[0]}Clmt&sig={unquote(decodeSignature(signature))}{rawUrl[-1]}"
+
+      return completeUrl
+
+   def getPlaylistMetadata(self, playlistID: str = None) -> list:
+      self.metaData = requests.get(f'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id={playlistID}&key={API_KEY}').json()['items'][0]
+
+      self.title = self.metaData['snippet']['title']
+      self.thumbnail = self.metaData['snippet']['thumbnails']['high']['url']
+
+      return [self.title, self.thumbnail]
+
+   def getTrackMetadata(self, videoID: str|list = None) -> list:
+      self.tracksInfo = []
+
+      if not isinstance(videoID, list):
+         videoID = [videoID]
+
+      self.dataList = [{
+         "videoId": f"{ID}",
+         "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
+         "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}} for ID in videoID]
+
+      self.manyResponse = grequests.map(grequests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=data) for data in self.dataList)
+
+      for _, response in enumerate(self.manyResponse):
+         self.currentResponse = response.json()
+         self.title = self.currentResponse['videoDetails']['title']
+         self.uploaderName = self.currentResponse['videoDetails']['author']
+         self.thumbnailLink = self.currentResponse['videoDetails']['thumbnail']['thumbnails'][-1]['url']
+         self.trackDuration = TimeHandler().timeConverter(self.currentResponse['videoDetails']['lengthSeconds'])
+         self.tracksInfo.append([self.title, self.uploaderName, self.trackDuration, self.thumbnailLink])
+
+      return self.tracksInfo
+
+   def getSingleAudio(self, sourceUrl: str = None):
+      videoID = sourceUrl.split('watch?v=')[-1]
+      self.trackData = self.getTrackMetadata(videoID)[0]
+      self.audioSource = self.getDirectLink(videoID)
+
+      return {'rawSource': sourceUrl,
+              'title': self.trackData[0],
+              'author': self.trackData[1],
+              'duration': self.trackData[2],
+              'thumbnail': self.trackData[3],
+              'audioSource': self.audioSource}
+
+   def getPlaylistAudios(self, sourceUrl: str = None):
+      self.sortingList = []
+
+      playlistID = sourceUrl.split('?list=')[-1]
+      self.playlistRequests = requests.get(f'https://www.youtube.com/playlist?list={playlistID}').text
+      self.videosIDs = (re.findall(r'watch\?v=(\S{11})', self.playlistRequests))
+      [self.sortingList.append(ID) for ID in self.videosIDs if ID not in self.sortingList]
+      self.videosIDs = self.sortingList
+      
+      self.metaData = self.getPlaylistMetadata(playlistID)
+      self.tracksInfo = self.getTrackMetadata(self.videosIDs)
 
       with concurrent.futures.ThreadPoolExecutor() as executor:
-         self.threadsData = [executor.submit(self.getAudioData, audioID) for audioID in audioIDS[:50]]
+         self.threadData = [executor.submit(self.getDirectLink, ID) for ID in self.videosIDs]
+      for _, source in enumerate(self.threadData):
+         self.audioSources.append(source.result())
 
-      for _, source in enumerate(self.threadsData):
-         try:
-            self.playlistTracks.append(source.result())
-         except:
-            ...
+      for index, source in enumerate(self.tracksInfo):
+         self.playlistTracks.append({'title': source[0], 
+                                     'duration': source[2], 
+                                     'audioSource': self.audioSources[index]})
 
-      async with aiohttp.ClientSession() as session:
-         async with session.get(f'https://www.youtube.com/oembed?url={sourceQuery}') as response:
-            self.playlistHeader = await response.json()
-      
-      return {'rawSource': sourceQuery, 'title': self.playlistHeader['title'], 'thumbnail': self.playlistHeader['thumbnail_url'], 'playlist': self.playlistTracks}
+      return {'rawSource': sourceUrl, 
+              'title': self.metaData[0], 
+              'thumbnail': self.metaData[1], 
+              'playlist': self.playlistTracks}
+
+   def getTextToAudio(self, sourceQuery: str = None):
+      self.DATA = {
+         "query": f"{sourceQuery}",
+         "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
+         "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}}
+
+      self.requestsTextInfo = requests.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=self.DATA).json()
+      videoID = self.requestsTextInfo['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['compactVideoRenderer']['videoId']
+
+      self.trackData = self.getTrackMetadata(videoID)[0]
+      self.audioSource = self.getDirectLink(videoID)
+
+      return {'rawSource': f'https://www.youtube.com/watch?v={videoID}',
+              'title': self.trackData[0],
+              'author': self.trackData[1],
+              'duration': self.trackData[2],
+              'thumbnail': self.trackData[3],
+              'audioSource': self.audioSource}
+
+   def getLiveAudio(self, postData: dict = None):
+      self.audioManifest = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=postData).json()
+      return self.audioManifest['streamingData']['hlsManifestUrl']
+
+   async def getLiveStream(self, sourceUrl: str = None, loop = None):
+      streamID = sourceUrl.split("?v=")[-1]
+
+      self.DATA = {
+         "videoId": f"{streamID}",
+         "context": {"client": {"clientName": "WEB", "clientVersion": "2.20231020.00.01"}}}
+
+      self.completeData = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=self.DATA).json()
+      self.streamData = self.completeData['videoDetails']
+      self.audioSource = await loop.run_in_executor(None, lambda: self.getLiveAudio(self.DATA))
+
+      return {'rawSource': sourceUrl,
+              'title': self.streamData['title'],
+              'author': self.streamData['author'],
+              'duration': 'LIVE',
+              'thumbnail': self.streamData['thumbnail']['thumbnails'][-1]['url'],
+              'audioSource': self.audioSource}
 
 class YtGrabber(YtEngine):
    def __init__(self) -> None:
       super().__init__()
 
-   async def getFromSource(self, sourceQuery: str = '', queryType: str = '', *, loop = None) -> [str, dict]:
+   async def getFromYoutube(self, sourceQuery: str = None, queryType: str = None, loop = None): 
       match queryType:
          case 'linkSource':
-            self.intermidiateData = yt_dlp.YoutubeDL(self.YDL_OPTIONS_URL).extract_info(url=sourceQuery, download=False)
-         case 'textSource':
-            self.intermidiateData = yt_dlp.YoutubeDL(self.YDL_OPTIONS_URL).extract_info(url=f'ytsearch:{sourceQuery}', download=False)['entries'][0]
-         case 'liveSource':
-            self.loop = loop or asyncio.get_event_loop()
-            self.intermidiateData = await self.loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(self.YDL_OPTIONS_URL).extract_info(url=sourceQuery, download=False))
-            
-      match queryType: 
+            self.intermidiateData = self.getSingleAudio(sourceQuery)
          case 'playlist':
-            self.audioData = await self.extractPlaylist(sourceQuery)
+            self.intermidiateData = self.getPlaylistAudios(sourceQuery)
+         case 'textSource':
+            self.intermidiateData = self.getTextToAudio(sourceQuery)
+         case 'liveSource':
+            self.intermidiateData = await self.getLiveStream(sourceQuery, loop)
 
-         case 'linkSource' | 'textSource':
-            self.audioData = {'rawSource': self.intermidiateData['original_url'],
-                              'title': self.intermidiateData['title'],
-                              'author': self.intermidiateData.get('channel') or self.intermidiateData.get('uploader'),
-                              'duration': self.intermidiateData.get('duration_string') or 'LIVE',
-                              'thumbnail': self.intermidiateData['thumbnail'].replace('maxresdefault', 'default'),
-                              'audioSource': self.intermidiateData['url']}
+      return [queryType, self.intermidiateData]
 
-      return [queryType, self.audioData]
-
-#asyncio.run(YtGrabber().getFromSource('https://www.youtube.com/watch?v=LAUIqLDI6i4&list=PLC1og_v3eb4jyYjXlkdAyAMURj7kTcddQ', 'playlist'))
+'''start = time.time()
+asyncio.run(YtGrabber().getFromYoutube('черниковская хата спектакль окончен', 'textSource'))
+print(time.time() - start)'''

@@ -1,3 +1,4 @@
+import asyncio
 import re
 import html
 
@@ -14,20 +15,20 @@ class SearchManager():
    def __init__(self) -> None:
       ...
 
-   async def findAudio(self, searchQuery: str = '', platform: str = 'Youtube', loop = None) -> [str, dict]:
+   async def findAudio(self, searchQuery: str = None, platform: str = None, loop = None) -> [str, dict]:
       self.searchQuery = html.unescape(searchQuery).replace('\n', '')
 
-      match self.searchQuery.startswith('https://www.youtube') or self.searchQuery.startswith('https://www.soundcloud'):
+      match self.searchQuery.startswith('https://www.youtube'):
          case True:
             match bool(re.search(r".list=|/sets/", self.searchQuery)):
                case True:
-                  return await YtGrabber().getFromSource(sourceQuery=self.searchQuery, queryType='playlist')
+                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='playlist')
             
             match bool(loop):
                case True:
-                  return await YtGrabber().getFromSource(sourceQuery=self.searchQuery, queryType='liveSource', loop=loop)
+                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='liveSource', loop=loop)
                case False:
-                  return await YtGrabber().getFromSource(sourceQuery=self.searchQuery, queryType='linkSource')
+                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='linkSource')
 
       match self.searchQuery.startswith('https://vk.com'):
          case True:
@@ -35,7 +36,7 @@ class SearchManager():
                case True:
                   return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='playlist')
                case False:
-                  return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='linkSource')\
+                  return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='linkSource')
       
       match self.searchQuery.startswith('https://music.yandex.ru/'):
          case True:
@@ -49,11 +50,11 @@ class SearchManager():
       match (not self.searchQuery.startswith('https://')):
          case True:
             match platform:
-               case 'Youtube':
-                  return await YtGrabber().getFromSource(sourceQuery=self.searchQuery, queryType='textSource')
-               case 'Vkontakte':
+               case 'p':
+                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='textSource')
+               case 'vp':
                   return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='textSource')
-               case 'Yandex':
+               case 'yp':
                   return YmGrabber().getFromYandex(sourceQuery=self.searchQuery, queryType='textSource')
 
 #asyncio.run(SearchManager('https://www.youtube.com/playlist?list=PLtVQfwi9HjrCDn5JpyF65dp1PxZY5sKcp').findAudio())
