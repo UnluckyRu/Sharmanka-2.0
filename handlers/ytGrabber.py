@@ -62,9 +62,9 @@ class YtEngine(Youtube):
       baseRequest = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=self.DATA).json()
 
       try:
-         completeUrl = baseRequest['streamingData']['adaptiveFormats'][-4]['url']
+         completeUrl = baseRequest['streamingData']['adaptiveFormats'][-1]['url']
       except KeyError:
-         encodeSignature = baseRequest['streamingData']['adaptiveFormats'][-4]['signatureCipher']
+         encodeSignature = baseRequest['streamingData']['adaptiveFormats'][-1]['signatureCipher']
          signature, _, rawUrl = encodeSignature.split('&')
          rawUrl = unquote(rawUrl.replace('url=', '')).split('Clmt')
          signature = unquote(signature.replace('s=', ''))

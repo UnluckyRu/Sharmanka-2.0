@@ -58,7 +58,7 @@ class SearchManager():
                   return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
 
 # async def x():
-#    x = await SearchManager().findAudio('Нажми на кнопку (Tehnologia Cover) Chernikovskaya Hata', 'sp')
+#    x = await SearchManager().findAudio('https://www.youtube.com/watch?v=Mapzl6JFkD0')
 #    print(x)
 
 # asyncio.run(x())
