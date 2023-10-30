@@ -12,49 +12,53 @@ except:
    from ymGrabber import YmGrabber
 
 class SearchManager():
-   def __init__(self) -> None:
-      ...
+   @classmethod
+   async def findAudio(cls, searchQuery: str = None, platform: str = None, tracksAmount: int = None, loop = None) -> [str, dict]:
+      cls.searchQuery = html.unescape(searchQuery).replace('\n', '')
 
-   async def findAudio(self, searchQuery: str = None, platform: str = None, loop = None) -> [str, dict]:
-      self.searchQuery = html.unescape(searchQuery).replace('\n', '')
-
-      match self.searchQuery.startswith('https://www.youtube'):
+      match cls.searchQuery.startswith('https://www.youtube'):
          case True:
-            match bool(re.search(r".list=|/sets/", self.searchQuery)):
+            match bool(re.search(r".list=|/sets/", cls.searchQuery)):
                case True:
-                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='playlist')
+                  return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='playlist')
             
             match bool(loop):
                case True:
-                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='liveSource', loop=loop)
+                  return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='liveSource', loop=loop)
                case False:
-                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='linkSource')
+                  return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='linkSource')
 
-      match self.searchQuery.startswith('https://vk.com'):
+      match cls.searchQuery.startswith('https://vk.com'):
          case True:
-            match bool(re.search(r'playlist|album|audio_playlist', self.searchQuery)):
+            match bool(re.search(r'playlist|album|audio_playlist', cls.searchQuery)):
                case True:
-                  return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='playlist')
+                  return await VkGrabber().getFromVk(sourceQuery=cls.searchQuery, queryType='playlist')
                case False:
-                  return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='linkSource')
+                  return await VkGrabber().getFromVk(sourceQuery=cls.searchQuery, queryType='linkSource')
       
-      match self.searchQuery.startswith('https://music.yandex.ru/'):
+      match cls.searchQuery.startswith('https://music.yandex.ru/'):
          case True:
-            match bool(re.search(r'track', self.searchQuery)):
+            match bool(re.search(r'track', cls.searchQuery)):
                case True:
-                  return YmGrabber().getFromYandex(sourceQuery=self.searchQuery, queryType='linkSource')
+                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='linkSource')
                case False:
-                  return YmGrabber().getFromYandex(sourceQuery=self.searchQuery, queryType='playlist')
+                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='playlist')
                   
-
-      match (not self.searchQuery.startswith('https://')):
+      
+      match (not cls.searchQuery.startswith('https://')):
          case True:
             match platform:
-               case 'p':
-                  return await YtGrabber().getFromYoutube(sourceQuery=self.searchQuery, queryType='textSource')
-               case 'vp':
-                  return await VkGrabber().getFromVk(sourceQuery=self.searchQuery, queryType='textSource')
-               case 'yp':
-                  return YmGrabber().getFromYandex(sourceQuery=self.searchQuery, queryType='textSource')
+               case 'p' | 'P':
+                  return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='textSource')
+               case 'vp' | 'VP':
+                  return await VkGrabber().getFromVk(sourceQuery=cls.searchQuery, queryType='textSource')
+               case 'yp' | 'YP':
+                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='textSource')
+               case 'sp' | 'SP':
+                  return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
 
-#asyncio.run(SearchManager('https://www.youtube.com/playlist?list=PLtVQfwi9HjrCDn5JpyF65dp1PxZY5sKcp').findAudio())
+# async def x():
+#    x = await SearchManager().findAudio('Нажми на кнопку (Tehnologia Cover) Chernikovskaya Hata', 'sp')
+#    print(x)
+
+# asyncio.run(x())

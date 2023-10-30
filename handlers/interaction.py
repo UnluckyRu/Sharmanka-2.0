@@ -2,7 +2,7 @@ from discord.interactions import Interaction
 from discord.ui import Select, View
 from discord import Interaction, SelectOption
 
-class audioMenu(Select):
+class AudioMenu(Select):
    def __init__(self, audioSourceList: list[dict[str, str, str]] = []) -> None:
       super().__init__(placeholder='\"Smart\" search music', options=[SelectOption(label=s['title'], value=i, description=s['author']) for i, s in enumerate(audioSourceList)])
 

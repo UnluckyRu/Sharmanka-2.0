@@ -18,15 +18,15 @@ class Bot(commands.Bot):
       intents.voice_states = True
 
       super().__init__(intents=intents, command_prefix=commands.when_mentioned_or(PREFIX))
-   
-   async def on_ready(self):
-      print('[BOT] Okay I\'m ready.')
 
    async def load_extensions(self):
       for commandfile in os.listdir('./commands'):
          if commandfile.endswith('.py'):
             await bot.load_extension(f'commands.{commandfile[:-3]}')
       print('[BOT] All additional commands load!')
+
+   async def on_ready(self):
+      print('[BOT] Okay I\'m ready.')
 
    async def mainSetup(self):
       async with bot:
@@ -38,4 +38,4 @@ bot = Bot()
 if __name__ == "__main__":
    asyncio.run(bot.mainSetup())
 else:
-   raise Exception("You trying start main file like a additional")
+   raise Exception("You trying start main module like a additional")

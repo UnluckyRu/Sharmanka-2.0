@@ -134,6 +134,6 @@ class YmGrabber(YmEngine):
 
       return [queryType, self.intermidiateData]
 
-'''start = time.time()
-print(YmGrabber().getFromYandex('https://music.yandex.ru/users/music-blog/playlists/2710', 'playlist'))
-print(time.time()-start)'''
+# start = time.time()
+# print(YmGrabber().getFromYandex('https://music.yandex.ru/users/music-blog/playlists/2710', 'playlist'))
+# print(time.time()-start)

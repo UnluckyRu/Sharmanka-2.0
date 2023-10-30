@@ -184,12 +184,34 @@ class YtEngine(Youtube):
               'duration': 'LIVE',
               'thumbnail': self.streamData['thumbnail']['thumbnails'][-1]['url'],
               'audioSource': self.audioSource}
+   
+   def getManyAudios(self, textSource: str = None, tracksAmount: int = None):
+      if tracksAmount is None: tracksAmount = 10
+      self.audioSources = []
+
+      self.DATA = {
+         "query": f"{textSource}",
+         "params": "EgIQAQ%3D%3D",
+         "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
+         "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}}
+
+      self.requestsTextInfo = requests.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=self.DATA).json()['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
+
+      for i in range((tracksAmount)):
+         try:
+            self.audioSources.append({'title': self.requestsTextInfo[i]['compactVideoRenderer']['title']['runs'][0]['text'], 
+                                    'author': self.requestsTextInfo[i]['compactVideoRenderer']['longBylineText']['runs'][0]['text'], 
+                                    'url': f"https://www.youtube.com/watch?v={self.requestsTextInfo[i]['compactVideoRenderer']['videoId']}",})
+         except IndexError:
+            break
+         
+      return self.audioSources
 
 class YtGrabber(YtEngine):
    def __init__(self) -> None:
       super().__init__()
 
-   async def getFromYoutube(self, sourceQuery: str = None, queryType: str = None, loop = None): 
+   async def getFromYoutube(self, sourceQuery: str = None, queryType: str = None, tracksAmount: int = None, loop = None): 
       match queryType:
          case 'linkSource':
             self.intermidiateData = self.getSingleAudio(sourceQuery)
@@ -197,11 +219,13 @@ class YtGrabber(YtEngine):
             self.intermidiateData = self.getPlaylistAudios(sourceQuery)
          case 'textSource':
             self.intermidiateData = self.getTextToAudio(sourceQuery)
+         case 'bulkRequests':
+            self.intermidiateData = self.getManyAudios(sourceQuery, tracksAmount)
          case 'liveSource':
             self.intermidiateData = await self.getLiveStream(sourceQuery, loop)
 
       return [queryType, self.intermidiateData]
 
-'''start = time.time()
-asyncio.run(YtGrabber().getFromYoutube('черниковская хата спектакль окончен', 'textSource'))
-print(time.time() - start)'''
+# start = time.time()
+# asyncio.run(YtGrabber().getFromYoutube('this feeling nekxstxzis', 'bulkRequests'))
+# print(time.time() - start)

@@ -119,4 +119,4 @@ class VkGrabber(VkEngine):
 
       return [queryType, self.intermidiateData]
       
-#print(asyncio.run(VkGrabber().getFromVk('https://vk.com/audio300732341_456239758_eb99e1c986ca666c26', 'linkSource')))
+# print(asyncio.run(VkGrabber().getFromVk('https://vk.com/audio300732341_456239758_eb99e1c986ca666c26', 'linkSource')))
