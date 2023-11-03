@@ -13,7 +13,10 @@ class Queue():
    @classmethod
    def putQueue(cls, guildID: str = None, songData: dict = None):
       cls.createQueue(cls, guildID)
-      cls.queueList[f'{guildID}'].append(songData)
+      if not isinstance(songData, list):
+         cls.queueList[f'{guildID}'].append(songData)
+      if isinstance(songData, list):
+         cls.queueList[f'{guildID}'].extend(songData)
 
    @classmethod
    def getQueue(cls, guildID: str = None):

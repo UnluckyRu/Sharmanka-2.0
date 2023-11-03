@@ -1,4 +1,8 @@
+import os
+import re
+import json
 import discord
+import requests
 
 class TimeHandler():
    def __init__(self) -> None:
@@ -59,3 +63,39 @@ class BotConnect():
                      return False
                case _: 
                   return False
+
+class YoutubeUpdate():
+   CIPHER_VERSION = (requests.get('https://www.youtube.com/iframe_api').text).split(';')[0].split('/')[5].replace('\\', '')
+
+   def __init__(self) -> None:
+      self.checkUpdate()
+
+   @classmethod
+   def checkUpdate(cls) -> None:
+      print('[Utilite] Check update...')
+      
+      if os.path.exists('handlers/algorithmData.json'):
+         with open('handlers/algorithmData.json', mode='r', encoding='UTF-8') as file:
+            jsonData = json.load(file)
+
+      if not os.path.exists('handlers/algorithmData.json'):
+         with open('handlers/algorithmData.json', mode='w+', encoding='UTF-8') as file:
+            try:
+               jsonData = json.load(file)
+            except json.decoder.JSONDecodeError:
+               jsonData = {"version": 0}
+
+      match jsonData['version'] != cls.CIPHER_VERSION:
+         case True:
+            functionParser = (requests.get(f'https://www.youtube.com/s/player/{cls.CIPHER_VERSION}/player_ias.vflset/en_US/base.js').text).replace('\n', '')
+            mainFunction = re.search(r"[\{\d\w\(\)\\.\=\"]*?;(\S{1,5}\...\(.\,..?\)\;){3,}.*?}", functionParser)[0]
+            subFunction = re.findall(r"var "+re.findall(r'(\w{2,})\...', mainFunction)[0]+r"={.+?};", functionParser)[0]
+
+            jsonData['timestamp'] = re.findall(r'signatureTimestamp:\S{5}', functionParser)[-1].replace('signatureTimestamp:', '')
+            jsonData['version'] = cls.CIPHER_VERSION
+            jsonData['algorithm'] = f'{subFunction} {mainFunction};'
+            jsonData['download_key'] = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
+
+            with open('handlers/algorithmData.json', mode='w+') as file:
+               json.dump(jsonData, file, ensure_ascii=False)
+      print('[Utilite] Update complete...')

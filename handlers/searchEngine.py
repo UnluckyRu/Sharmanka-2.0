@@ -1,6 +1,9 @@
+import gevent.monkey
 import asyncio
 import re
 import html
+
+gevent.monkey.patch_all(thread=False, select=False)
 
 try:
    from .vkGrabber import VkGrabber
@@ -57,8 +60,8 @@ class SearchManager():
                case 'sp' | 'SP':
                   return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
 
-# async def x():
-#    x = await SearchManager().findAudio('https://www.youtube.com/watch?v=Mapzl6JFkD0')
-#    print(x)
+# async def testEngine():
+#    audioObject = await SearchManager.findAudio('https://www.youtube.com/watch?v=4xDzrJKXOOY')
+#    print(audioObject)
 
-# asyncio.run(x())
+# asyncio.run(testEngine())
