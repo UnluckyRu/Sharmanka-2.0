@@ -1,12 +1,12 @@
 import os
 import re
-import time
 import json
 import js2py
-import asyncio
 import grequests
-import requests
 import concurrent.futures
+
+import time
+import asyncio
 
 from urllib.parse import unquote
 from dotenv import load_dotenv, find_dotenv
@@ -36,8 +36,12 @@ class YtEngine(YoutubeUpdate):
       with open('handlers/algorithmData.json', encoding='UTF-8') as file:
          self.jsonData = json.load(file)
 
-   def getDirectLink(self, videoID: str = None) -> str:
-      self.baseRequest = requests.get(f'https://youtube.com/watch?v={videoID}&pbj=1', headers=self.HEADERS).json()[2]['playerResponse']['streamingData']['adaptiveFormats'][-1]
+   def getDirectLink(self, videoID: list = None) -> str:
+      if not isinstance(videoID, list):
+         videoID = [videoID]
+
+      self.baseRequest = grequests.map(grequests.get(f'https://youtube.com/watch?v={ID}&pbj=1', headers=self.HEADERS) for ID in videoID)
+      self.baseRequest = self.baseRequest[0].json()[2]['playerResponse']['streamingData']['adaptiveFormats'][-1]
 
       try:
          completeUrl = self.baseRequest['url']
@@ -72,8 +76,12 @@ class YtEngine(YoutubeUpdate):
 
       return self.tracksInfo
 
-   def getPlaylistMetadata(self, playlistID: str = None) -> list:
-      self.metaData = requests.get(f'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id={playlistID}&key={API_KEY}').json()['items'][0]
+   def getPlaylistMetadata(self, playlistID: list = None) -> list:
+      if not isinstance(playlistID, list):
+         playlistID = [playlistID]
+
+      self.metaData = grequests.map(grequests.get(f'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id={ID}&key={API_KEY}') for ID in playlistID)
+      self.metaData = self.metaData[0].json()['items'][0]
 
       self.title = self.metaData['snippet']['title']
       self.thumbnail = self.metaData['snippet']['thumbnails']['high']['url']
@@ -100,7 +108,9 @@ class YtEngine(YoutubeUpdate):
       if sourceUrl.find('&list=') != -1:
          playlistID = sourceUrl.split('&list=')[-1]
 
-      self.playlistRequests = requests.get(f'https://www.youtube.com/playlist?list={playlistID}').text
+      playlistID = [playlistID]
+
+      self.playlistRequests = grequests.map(grequests.get(f'https://www.youtube.com/playlist?list={ID}') for ID in playlistID)[0].text
       self.videosIDs = (re.findall(r'watch\?v=(\S{11})', self.playlistRequests))
       [self.sortingList.append(ID) for ID in self.videosIDs if ID not in self.sortingList]
       self.videosIDs = self.sortingList
@@ -124,7 +134,11 @@ class YtEngine(YoutubeUpdate):
               'playlist': self.playlistTracks}
 
    def getTextToAudio(self, sourceQuery: str = None):
-      self.requestsTextInfo = requests.get(f'https://youtube.com/results?search_query={sourceQuery}&pbj=1', headers=self.HEADERS).json()[1]['response']['contents']
+      if not isinstance(sourceQuery, list):
+         sourceQuery = [sourceQuery]
+
+      self.requestsTextInfo = grequests.map(grequests.get(f'https://youtube.com/results?search_query={text}&pbj=1', headers=self.HEADERS) for text in sourceQuery)
+      self.requestsTextInfo = self.requestsTextInfo[0].json()[1]['response']['contents']
 
       try:
          videoID = self.requestsTextInfo['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['videoRenderer']['videoId']
@@ -141,22 +155,18 @@ class YtEngine(YoutubeUpdate):
               'thumbnail': self.trackData[3],
               'audioSource': self.audioSource}
 
-   def getLiveAudio(self, postData: dict = None):
-      self.audioManifest = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=postData).json()
-      return self.audioManifest['streamingData']['hlsManifestUrl']
+   def getLiveAudio(self, getData: dict = None):
+      return getData['streamingData']['hlsManifestUrl']
 
    async def getLiveStream(self, sourceUrl: str = None, loop = None):
-      streamID = sourceUrl.split("?v=")[-1]
+      sourceUrl = [sourceUrl]
 
-      self.DATA = {
-         "videoId": f"{streamID}",
-         "context": {"client": {"clientName": "WEB", "clientVersion": "2.20231020.00.01"}}}
-
-      self.completeData = requests.post(f'https://www.youtube.com/youtubei/v1/player?key={self.jsonData["download_key"]}', json=self.DATA).json()
+      self.completeData = grequests.map(grequests.get(f'{Url}&pbj=1', headers=self.HEADERS) for Url in sourceUrl)
+      self.completeData = self.completeData[0].json()[2]['playerResponse']
       self.streamData = self.completeData['videoDetails']
-      self.audioSource = await loop.run_in_executor(None, lambda: self.getLiveAudio(self.DATA))
+      self.audioSource = await loop.run_in_executor(None, lambda: self.getLiveAudio(self.completeData))
 
-      return {'rawSource': sourceUrl,
+      return {'rawSource': sourceUrl[0],
               'title': self.streamData['title'],
               'author': self.streamData['author'],
               'duration': 'LIVE',
@@ -173,7 +183,10 @@ class YtEngine(YoutubeUpdate):
          "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
          "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}}
 
-      self.requestsTextInfo = requests.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=self.DATA).json()['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
+      self.DATA = [self.DATA]
+
+      self.requestsTextInfo = grequests.map(grequests.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=DATA) for DATA in self.DATA)
+      self.requestsTextInfo = self.requestsTextInfo[0].json()['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
 
       for i in range((tracksAmount)):
          try:

@@ -24,7 +24,7 @@ class LeaveControl():
 
       if not context.voice_client.is_playing():
          cls.exitTime += 1
-         print(f"Time: {cls.exitTime}; CLSCounter: {cls.classCounter};")
+         # print(f"Time: {cls.exitTime}; CLSCounter: {cls.classCounter};")
 
       if context.voice_client.is_playing():
          cls.exitTime = 0
