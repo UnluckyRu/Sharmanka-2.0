@@ -18,7 +18,7 @@ class MockObject(commands.Cog):
    async def connecting(cls, context: commands.Context, notification):
       if await BotConnect.botConnect(context=context):
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Bot connect...'))
-         return
+         return True
 
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...'))
 
@@ -28,7 +28,7 @@ class MockObject(commands.Cog):
 
       if not context.voice_client.is_playing():
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Playing audio...'))
-         return
+         return True
       
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...'))
@@ -38,7 +38,7 @@ class MockObject(commands.Cog):
       context.voice_client.pause()
       if not context.voice_client.is_paused():
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Pause audio...'))
-         return
+         return True
       
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...\n\n' + 
@@ -49,7 +49,7 @@ class MockObject(commands.Cog):
       context.voice_client.resume()
       if not context.voice_client.is_playing():
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Resume audio...'))
-         return
+         return True
 
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...\n\n' + 
@@ -77,7 +77,7 @@ class MockObject(commands.Cog):
                   break
       except Exception:
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Platforms engine is broken...'))
-         return
+         return True
       else:
          await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                            ':white_check_mark: Playing audio...\n\n' + 
@@ -97,14 +97,14 @@ class MockObject(commands.Cog):
 
       if len(Queue.returnQueue(context.guild.id)[1]) == 0:
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Adding in Queue...'))
-         return
+         return True
    
       context.voice_client.stop()
       context.voice_client.play(FFmpegPCMAudio(source=Queue.getQueue(context.guild.id), **FFMPEG_OPTIONS, executable='ffmpeg'))
 
       if not context.voice_client.is_playing():
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Getting from Queue...'))
-         return
+         return True
 
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...\n\n' + 
@@ -118,7 +118,7 @@ class MockObject(commands.Cog):
       context.voice_client.stop() 
       if context.voice_client.is_playing():
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Stop song playing...'))
-         return
+         return True
 
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...\n\n' + 
@@ -134,11 +134,11 @@ class MockObject(commands.Cog):
       await context.voice_client.disconnect()
       if Queue.returnQueue(context.guild.id)[1]:
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Clear Queue...'))
-         return
+         return True
 
       if context.voice_client:
          await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Leave from channel...'))
-         return
+         return True
       
       await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
                                                                                         ':white_check_mark: Playing audio...\n\n' + 
@@ -160,21 +160,21 @@ class MockObject(commands.Cog):
 
       notification = await context.send(embed=MessageHandler.embedMessage('Complex bot check...'))
 
-      await self.connecting(context, notification)
+      if await self.connecting(context, notification): return
       await asyncio.sleep(2)
-      await self.playAudio(context, notification, Audiolink)
+      if await self.playAudio(context, notification, Audiolink): return
       await asyncio.sleep(2)
-      await self.pause(context, notification)
+      if await self.pause(context, notification): return
       await asyncio.sleep(2)
-      await self.resume(context, notification)
+      if await self.resume(context, notification): return
       await asyncio.sleep(2)
-      await self.checkEngine(context, notification, CheckDataset)
+      if await self.checkEngine(context, notification, CheckDataset): return
       await asyncio.sleep(2)
-      await self.queueUsing(context, notification, Audiolink)
+      if await self.queueUsing(context, notification, Audiolink): return
       await asyncio.sleep(2)
-      await self.stop(context, notification)
+      if await self.stop(context, notification): return
       await asyncio.sleep(2)
-      await self.leave(context, notification)
+      if await self.leave(context, notification): return
 
       await notification.edit(embed=MessageHandler.embedMessage('Success', ':white_check_mark: Diagnostic complete successfully\n\n' +
                                                                            'Enjoy using my bot! -Developer'))
