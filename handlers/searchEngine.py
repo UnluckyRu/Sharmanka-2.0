@@ -1,9 +1,6 @@
-import gevent.monkey
 import asyncio
 import re
 import html
-
-gevent.monkey.patch_all(thread=False, select=False)
 
 try:
    from .vkGrabber import VkGrabber
@@ -43,10 +40,9 @@ class SearchManager():
          case True:
             match bool(re.search(r'track', cls.searchQuery)):
                case True:
-                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='linkSource')
+                  return await YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='linkSource')
                case False:
-                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='playlist')
-                  
+                  return await YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='playlist')
       
       match (not cls.searchQuery.startswith('https://')):
          case True:
@@ -56,7 +52,7 @@ class SearchManager():
                case 'vp' | 'VP':
                   return await VkGrabber().getFromVk(sourceQuery=cls.searchQuery, queryType='textSource')
                case 'yp' | 'YP':
-                  return YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='textSource')
+                  return await YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='textSource')
                case 'sp' | 'SP':
                   return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
 

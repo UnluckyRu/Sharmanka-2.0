@@ -66,6 +66,7 @@ class BotConnect():
 
 class YoutubeUpdate():
    CIPHER_VERSION = (requests.get('https://www.youtube.com/iframe_api').text).split(';')[0].split('/')[5].replace('\\', '')
+   FULL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'handlers', 'algorithmData.json')
 
    def __init__(self) -> None:
       self.checkUpdate()
@@ -73,13 +74,13 @@ class YoutubeUpdate():
    @classmethod
    def checkUpdate(cls) -> None:
       print('[Utilite] Check update...')
-      
-      if os.path.exists('handlers/algorithmData.json'):
-         with open('handlers/algorithmData.json', mode='r', encoding='UTF-8') as file:
+      # print(cls.FULL_DIR)
+      if os.path.exists(cls.FULL_DIR):
+         with open(cls.FULL_DIR, mode='r', encoding='UTF-8') as file:
             jsonData = json.load(file)
 
-      if not os.path.exists('handlers/algorithmData.json'):
-         with open('handlers/algorithmData.json', mode='w+', encoding='UTF-8') as file:
+      if not os.path.exists(cls.FULL_DIR):
+         with open(cls.FULL_DIR, mode='w+', encoding='UTF-8') as file:
             try:
                jsonData = json.load(file)
             except json.decoder.JSONDecodeError:
@@ -96,6 +97,6 @@ class YoutubeUpdate():
             jsonData['algorithm'] = f'{subFunction} {mainFunction};'
             jsonData['download_key'] = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'
 
-            with open('handlers/algorithmData.json', mode='w+') as file:
+            with open(cls.FULL_DIR, mode='w+') as file:
                json.dump(jsonData, file, ensure_ascii=False)
       print('[Utilite] Update complete...')

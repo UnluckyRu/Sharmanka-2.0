@@ -1,8 +1,7 @@
 import time
-import grequests
-import requests
+import aiohttp
 import xmltodict
-import concurrent.futures
+import asyncio
 
 from hashlib import md5
 
@@ -14,59 +13,66 @@ except:
 class YmEngine():
    def __init__(self) -> None:
       self.DECODE_VALUE = 'XGRlBW9FXlekgbPrRHuSiA'
-      self.HEADERS = {'User-Agent': 'Yandex-Music-API',
-                      'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231',
+      self.HEADERS = {'User-Agent': 'Windows 10',
+                      'X-Yandex-Music-Client': 'WindowsPhone/4.54',
                       'Authorization': 'OAuth y0_AgAAAAAmfsGrAAG8XgAAAADubN2RW7NfsgOGQgGQc_X2wyjgxa0E7yI',}
       
       self.trackIDs = []
       self.playlistTracks = []
 
-   def getDirtectLink(self, trackID: str = ''):
-      self.invocationInfo = requests.get(f'https://api.music.yandex.net/tracks/{trackID}/download-info', headers=self.HEADERS).json()
-      self.downloadInfo = self.invocationInfo.get('result')[1]['downloadInfoUrl']
-      self.audioVariables = xmltodict.parse(requests.get(url=self.downloadInfo, headers=self.HEADERS).text).get('download-info')
-
-      servicesVaribles = list(self.audioVariables.values())
-      sign = md5((self.DECODE_VALUE + servicesVaribles[1][1::] + servicesVaribles[-1]).encode('utf-8')).hexdigest()
-
-      return f'https://{servicesVaribles[0]}/get-mp3/{sign}/{servicesVaribles[2]}{servicesVaribles[1]}'
-
-   def getPlaylistMetadata(self, albumID: str = '', isAlbum: bool = False):
+   async def getPlaylistMetadata(self, albumID: str = '', isAlbum: bool = False):
       if isAlbum:
-         self.insertData = requests.get(f'https://api.music.yandex.net/albums/{albumID}/with-tracks').json().get('result')
+         async with aiohttp.ClientSession() as session:
+            async with session.get(f'https://api.music.yandex.net/albums/{albumID}/with-tracks') as response:
+               self.insertData = await response.json()
+
+         self.insertData = self.insertData.get('result')
          self.trackTitle = self.insertData.get('title')
          self.thumbnailLink = f"https://{self.insertData.get('coverUri').replace('%%', '200x200')}"
 
       if not isAlbum:
-         self.insertData = requests.get(f'https://api.music.yandex.net/{albumID}').json().get('result')
+         async with aiohttp.ClientSession() as session:
+            async with session.get(f'https://api.music.yandex.net/{albumID}') as response:
+               self.insertData = await response.json()
+
+         self.insertData = self.insertData.get('result')
          self.trackTitle = self.insertData.get('title')
          self.thumbnailLink = f"https://{self.insertData.get('cover')['uri'].replace('%%', '200x200')}"
 
       return [self.trackTitle, self.thumbnailLink]
 
-   def getTrackMetadata(self, trackID: list = None):
-      self.insertData = []
-      self.tracksInfo = []
+   async def getTrackData(self, trackID: str = None):
+      async with aiohttp.ClientSession() as session:
+         async with session.get(f'https://api.music.yandex.net/tracks/{trackID}') as response:
+            self.trackGeneralData = await response.json()
 
-      if not isinstance(trackID, list):
-         trackID = [trackID]
+      self.insertData = self.trackGeneralData['result'][0]
 
-      self.linksArray = [f'https://api.music.yandex.net/tracks/{ID}' for ID in trackID]
-      self.response = grequests.map((grequests.get(url) for url in self.linksArray))
+      self.trackTitle = self.insertData.get('title')
+      self.uploaderName = self.insertData.get('artists')[0]['name']
+      self.thumbnailLink = f"https://{self.insertData.get('albums')[0]['coverUri'].replace('%%', '200x200')}"
+      self.trackDuration = TimeHandler().millisecondsConverter(self.insertData.get('durationMs'))
 
-      for _, source in enumerate(self.response):
-         self.trackTitle = source.json()['result'][0].get('title')
-         self.uploaderName = source.json()['result'][0].get('artists')[0]['name']
-         self.thumbnailLink = f"https://{source.json()['result'][0].get('albums')[0]['coverUri'].replace('%%', '200x200')}"
-         self.trackDuration = TimeHandler().millisecondsConverter(source.json()['result'][0].get('durationMs'))
-         self.tracksInfo.append([self.trackTitle, self.uploaderName, self.trackDuration, self.thumbnailLink])
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+         async with session.get(f'https://api.music.yandex.net/tracks/{trackID}/download-info') as response:
+            self.audioRawSource = await response.json()
 
-      return self.tracksInfo
+      self.downloadInfo = self.audioRawSource.get('result')[1]['downloadInfoUrl']
 
-   def getSingleAudio(self, sourceUrl: str = ''):
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+            async with session.get(self.downloadInfo) as response:
+               self.textResult = await response.text()
+
+      self.audioVariables = xmltodict.parse(self.textResult).get('download-info')
+
+      servicesVaribles = list(self.audioVariables.values())
+      sign = md5((self.DECODE_VALUE + servicesVaribles[1][1::] + servicesVaribles[-1]).encode('utf-8')).hexdigest()
+
+      return [[self.trackTitle, self.uploaderName, self.trackDuration, self.thumbnailLink], f'https://{servicesVaribles[0]}/get-mp3/{sign}/{servicesVaribles[2]}{servicesVaribles[1]}']
+
+   async def getSingleAudio(self, sourceUrl: str = ''):
       self.splittedUrl = sourceUrl.split('/')[-1]
-      self.metaData = self.getTrackMetadata(self.splittedUrl)[0]
-      self.audioSource = self.getDirtectLink(self.splittedUrl)
+      self.metaData, self.audioSource = await self.getTrackData(self.splittedUrl)
 
       return {'rawSource': sourceUrl,
               'title': self.metaData[0],
@@ -75,42 +81,51 @@ class YmEngine():
               'thumbnail': self.metaData[3],
               'audioSource': self.audioSource}
 
-   def getPlaylistAudios(self, sourceUrl: str = ''):
-      self.audioSources = []
+   async def getPlaylistAudios(self, sourceUrl: str = ''):
+      self.taskManager = []
 
       if sourceUrl.find('playlist') != -1:
          self.extractedUrl = sourceUrl[sourceUrl.rfind('ru/')+len('ru/')::]
-         self.metaData = self.getPlaylistMetadata(self.extractedUrl)
-         self.albumRequest = requests.get(f'https://api.music.yandex.net/{self.extractedUrl}', headers=self.HEADERS).json().get('result')['tracks']
+         self.metaData = await self.getPlaylistMetadata(self.extractedUrl)
+         async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+            async with session.get(f'https://api.music.yandex.net/{self.extractedUrl}') as response:
+               self.insertData = await response.json()
+
+         self.albumRequest = self.insertData.get('result')['tracks']
 
       if sourceUrl.find('album') != -1:
          self.extractedUrl = sourceUrl[sourceUrl.rfind('/')+len('/')::]
          self.metaData = self.getPlaylistMetadata(self.extractedUrl, True)
-         self.albumRequest = requests.get(f'https://api.music.yandex.net/albums/{self.extractedUrl}/with-tracks', headers=self.HEADERS).json().get('result')['volumes'][0]
+         async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+            async with session.get(f'https://api.music.yandex.net/albums/{self.extractedUrl}/with-tracks') as response:
+               self.insertData = await response.json()
 
-      for i in range(len(self.albumRequest)):
-         self.trackIDs.append(self.albumRequest[i]['id'])
-      self.tracksInfo = self.getTrackMetadata(self.trackIDs)
+         self.albumRequest = self.insertData.get('result')['volumes'][0]
 
-      with concurrent.futures.ThreadPoolExecutor() as executor:
-         self.threadData = [executor.submit(self.getDirtectLink, trackID) for trackID in self.trackIDs]
-      for _, source in enumerate(self.threadData):
-         self.audioSources.append(source.result())
+      for _, element in enumerate(self.albumRequest):
+         self.trackIDs.append(element['id'])
 
-      for index, source in enumerate(self.tracksInfo):
-         self.playlistTracks.append({'title': source[0], 
-                                     'duration': source[2], 
-                                     'audioSource': self.audioSources[index]})
+      for _, trackId in enumerate(self.trackIDs):
+         self.taskManager.append(asyncio.create_task(self.getTrackData(trackId)))
+      self.extractInfo = await asyncio.gather(*self.taskManager)
+
+      for _, source in enumerate(self.extractInfo):
+         self.playlistTracks.append({'title': source[0][0], 
+                                     'duration': source[0][2], 
+                                     'audioSource': source[1]})
 
       return {'rawSource': sourceUrl,
               'title': self.metaData[0], 
               'thumbnail': self.metaData[1], 
               'playlist': self.playlistTracks}
 
-   def getTextToAudio(self, sourceText: str = ''):
-      self.requestResultInfo = requests.get(f'https://api.music.yandex.net/search?text={sourceText}&type=track&page=0', headers=self.HEADERS).json().get('result')['tracks']['results'][0]
-      self.metaData = self.getTrackMetadata(self.requestResultInfo["id"])[0]
-      self.audioSource = self.getDirtectLink(self.requestResultInfo["id"])
+   async def getTextToAudio(self, sourceText: str = ''):
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+         async with session.get(f'https://api.music.yandex.net/search?text={sourceText}&type=track&page=0') as response:
+            self.textResultInfo = await response.json()
+
+      self.requestResultInfo = self.textResultInfo.get('result')['tracks']['results'][0]["id"]
+      self.metaData, self.audioSource = await self.getTrackData(self.requestResultInfo)
 
       return {'rawSource': self.audioSource,
               'title': self.metaData[0],
@@ -123,17 +138,17 @@ class YmGrabber(YmEngine):
    def __init__(self) -> None:
       super().__init__()
 
-   def getFromYandex(self, sourceQuery: str = '', queryType: str = ''): 
+   async def getFromYandex(self, sourceQuery: str = '', queryType: str = ''): 
       match queryType:
          case 'linkSource':
-            self.intermidiateData = self.getSingleAudio(sourceQuery)
+            self.intermidiateData = await self.getSingleAudio(sourceQuery)
          case 'playlist':
-            self.intermidiateData = self.getPlaylistAudios(sourceQuery)
+            self.intermidiateData = await self.getPlaylistAudios(sourceQuery)
          case 'textSource':
-            self.intermidiateData = self.getTextToAudio(sourceQuery)
+            self.intermidiateData = await self.getTextToAudio(sourceQuery)
 
       return [queryType, self.intermidiateData]
 
 # start = time.time()
-# print(YmGrabber().getFromYandex('https://music.yandex.ru/users/music-blog/playlists/2710', 'playlist'))
+# print(asyncio.run(YmGrabber().getFromYandex('home resonance', 'textSource')))
 # print(time.time()-start)

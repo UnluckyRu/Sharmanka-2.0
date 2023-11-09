@@ -2,8 +2,7 @@ import os
 import re
 import json
 import js2py
-import grequests
-import concurrent.futures
+import aiohttp
 
 import time
 import asyncio
@@ -36,62 +35,47 @@ class YtEngine(YoutubeUpdate):
       with open('handlers/algorithmData.json', encoding='UTF-8') as file:
          self.jsonData = json.load(file)
 
-   def getDirectLink(self, videoID: list = None) -> str:
-      if not isinstance(videoID, list):
-         videoID = [videoID]
+   async def getTrackData(self, videoID: str = None) -> list:
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+         async with session.get(f'https://youtube.com/watch?v={videoID}&pbj=1') as response:
+            self.baseRequest = await response.json()
 
-      self.baseRequest = grequests.map(grequests.get(f'https://youtube.com/watch?v={ID}&pbj=1', headers=self.HEADERS) for ID in videoID)
-      self.baseRequest = self.baseRequest[0].json()[2]['playerResponse']['streamingData']['adaptiveFormats'][-1]
+      self.metaData = self.baseRequest[2]['playerResponse']['videoDetails']
+      self.playableData = self.baseRequest[2]['playerResponse']['streamingData']['adaptiveFormats'][-1]
 
-      try:
-         completeUrl = self.baseRequest['url']
-         return completeUrl
+      self.title = self.metaData['title']
+      self.uploaderName = self.metaData['author']
+      self.thumbnailLink = self.metaData['thumbnail']['thumbnails'][-1]['url']
+      self.trackDuration = TimeHandler().timeConverter(self.metaData['lengthSeconds'])
       
+      try:
+         completeUrl = self.playableData['url']
       except KeyError:
-         encodeSignature = self.baseRequest['signatureCipher']
+         encodeSignature = self.playableData['signatureCipher']
          signature, _, rawUrl = encodeSignature.split('&')
          rawUrl = unquote(rawUrl.replace('url=', '')).split('Clmt')
          signature = unquote(signature.replace('s=', ''))
 
          decodeSignature = js2py.eval_js(self.jsonData['algorithm'])
          completeUrl = f"{rawUrl[0]}Clmt&sig={unquote(decodeSignature(signature))}{rawUrl[-1]}"
+      
+      return [[self.title, self.uploaderName, self.trackDuration, self.thumbnailLink], completeUrl]
 
-         return completeUrl
+   async def getPlaylistMetadata(self, playlistID: str = None) -> list:
+      async with aiohttp.ClientSession() as session:
+         async with session.get(f'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id={playlistID}&key={API_KEY}') as response:
+            self.snippetData = await response.json()
 
-   def getTrackMetadata(self, videoID: str|list = None) -> list:
-      self.tracksInfo = []
+      self.metaData = self.snippetData['items'][0]['snippet']
 
-      if not isinstance(videoID, list):
-         videoID = [videoID]
-
-      self.manyResponse = grequests.map(grequests.get(f'https://youtube.com/watch?v={ID}&pbj=1', headers=self.HEADERS) for ID in videoID)
-
-      for _, response in enumerate(self.manyResponse):
-         self.currentResponse = response.json()[2]['playerResponse']
-         self.title = self.currentResponse['videoDetails']['title']
-         self.uploaderName = self.currentResponse['videoDetails']['author']
-         self.thumbnailLink = self.currentResponse['videoDetails']['thumbnail']['thumbnails'][-1]['url']
-         self.trackDuration = TimeHandler().timeConverter(self.currentResponse['videoDetails']['lengthSeconds'])
-         self.tracksInfo.append([self.title, self.uploaderName, self.trackDuration, self.thumbnailLink])
-
-      return self.tracksInfo
-
-   def getPlaylistMetadata(self, playlistID: list = None) -> list:
-      if not isinstance(playlistID, list):
-         playlistID = [playlistID]
-
-      self.metaData = grequests.map(grequests.get(f'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id={ID}&key={API_KEY}') for ID in playlistID)
-      self.metaData = self.metaData[0].json()['items'][0]
-
-      self.title = self.metaData['snippet']['title']
-      self.thumbnail = self.metaData['snippet']['thumbnails']['high']['url']
+      self.title = self.metaData['title']
+      self.thumbnail = self.metaData['thumbnails']['high']['url']
 
       return [self.title, self.thumbnail]
 
-   def getSingleAudio(self, sourceUrl: str = None):
+   async def getSingleAudio(self, sourceUrl: str = None):
       videoID = sourceUrl.split('watch?v=')[-1]
-      self.trackData = self.getTrackMetadata(videoID)[0]
-      self.audioSource = self.getDirectLink(videoID)
+      self.trackData, self.audioSource = await self.getTrackData(videoID)
 
       return {'rawSource': sourceUrl,
               'title': self.trackData[0],
@@ -100,53 +84,52 @@ class YtEngine(YoutubeUpdate):
               'thumbnail': self.trackData[3],
               'audioSource': self.audioSource}
 
-   def getPlaylistAudios(self, sourceUrl: str = None):
+   async def getPlaylistAudios(self, sourceUrl: str = None):
       self.sortingList = []
+      self.taskManager = []
 
       if sourceUrl.find('?list=') != -1:
          playlistID = sourceUrl.split('?list=')[-1]
       if sourceUrl.find('&list=') != -1:
          playlistID = sourceUrl.split('&list=')[-1]
 
-      playlistID = [playlistID]
-
-      self.playlistRequests = grequests.map(grequests.get(f'https://www.youtube.com/playlist?list={ID}') for ID in playlistID)[0].text
+      async with aiohttp.ClientSession() as session:
+         async with session.get(f'https://www.youtube.com/playlist?list={playlistID}') as response:
+            self.playlistRequests = await response.text()
+            
       self.videosIDs = (re.findall(r'watch\?v=(\S{11})', self.playlistRequests))
       [self.sortingList.append(ID) for ID in self.videosIDs if ID not in self.sortingList]
       self.videosIDs = self.sortingList
       
-      self.metaData = self.getPlaylistMetadata(playlistID)
-      self.tracksInfo = self.getTrackMetadata(self.videosIDs)
+      self.presentData = await self.getPlaylistMetadata(playlistID)
 
-      with concurrent.futures.ThreadPoolExecutor() as executor:
-         self.threadData = [executor.submit(self.getDirectLink, ID) for ID in self.videosIDs]
-      for _, source in enumerate(self.threadData):
-         self.audioSources.append(source.result())
-
-      for index, source in enumerate(self.tracksInfo):
-         self.playlistTracks.append({'title': source[0], 
-                                     'duration': source[2], 
-                                     'audioSource': self.audioSources[index]})
+      for _, videoId in enumerate(self.videosIDs):
+         self.taskManager.append(asyncio.create_task(self.getTrackData(videoId)))
+      self.extractInfo = await asyncio.gather(*self.taskManager)
+      
+      for _, source in enumerate(self.extractInfo):
+         self.playlistTracks.append({'title': source[0][0], 
+                                     'duration': source[0][2], 
+                                     'audioSource': source[1]})
 
       return {'rawSource': sourceUrl, 
-              'title': self.metaData[0], 
-              'thumbnail': self.metaData[1], 
+              'title': self.presentData[0], 
+              'thumbnail': self.presentData[1], 
               'playlist': self.playlistTracks}
 
-   def getTextToAudio(self, sourceQuery: str = None):
-      if not isinstance(sourceQuery, list):
-         sourceQuery = [sourceQuery]
+   async def getTextToAudio(self, sourceQuery: str = None):
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+         async with session.get(f'https://youtube.com/results?search_query={sourceQuery}&pbj=1') as response:
+            self.requestsTextInfo = await response.json()
 
-      self.requestsTextInfo = grequests.map(grequests.get(f'https://youtube.com/results?search_query={text}&pbj=1', headers=self.HEADERS) for text in sourceQuery)
-      self.requestsTextInfo = self.requestsTextInfo[0].json()[1]['response']['contents']
+      self.requestsTextInfo = self.requestsTextInfo[1]['response']['contents']
 
       try:
          videoID = self.requestsTextInfo['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['videoRenderer']['videoId']
       except KeyError:
          videoID = self.requestsTextInfo['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][1]['videoRenderer']['videoId']
 
-      self.trackData = self.getTrackMetadata(videoID)[0]
-      self.audioSource = self.getDirectLink(videoID)
+      self.trackData, self.audioSource = await self.getTrackData(videoID)
 
       return {'rawSource': f'https://www.youtube.com/watch?v={videoID}',
               'title': self.trackData[0],
@@ -155,14 +138,15 @@ class YtEngine(YoutubeUpdate):
               'thumbnail': self.trackData[3],
               'audioSource': self.audioSource}
 
-   def getLiveAudio(self, getData: dict = None):
+   async def getLiveAudio(self, getData: dict = None):
       return getData['streamingData']['hlsManifestUrl']
 
    async def getLiveStream(self, sourceUrl: str = None, loop = None):
-      sourceUrl = [sourceUrl]
+      async with aiohttp.ClientSession(headers=self.HEADERS) as session:
+         async with session.get(f'{sourceUrl}&pbj=1') as response:
+            self.completeData = await response.json()
 
-      self.completeData = grequests.map(grequests.get(f'{Url}&pbj=1', headers=self.HEADERS) for Url in sourceUrl)
-      self.completeData = self.completeData[0].json()[2]['playerResponse']
+      self.completeData = self.completeData[2]['playerResponse']
       self.streamData = self.completeData['videoDetails']
       self.audioSource = await loop.run_in_executor(None, lambda: self.getLiveAudio(self.completeData))
 
@@ -173,7 +157,7 @@ class YtEngine(YoutubeUpdate):
               'thumbnail': self.streamData['thumbnail']['thumbnails'][-1]['url'],
               'audioSource': self.audioSource}
    
-   def getManyAudios(self, textSource: str = None, tracksAmount: int = None):
+   async def getManyAudios(self, textSource: str = None, tracksAmount: int = None):
       if tracksAmount is None: tracksAmount = 10
       self.audioSources = []
 
@@ -183,10 +167,11 @@ class YtEngine(YoutubeUpdate):
          "context": {"client": {"clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "clientVersion": "2.0"}, "thirdParty": {"embedUrl": "https://www.youtube.com"}},
          "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": f"{self.jsonData['timestamp']}"}}}
 
-      self.DATA = [self.DATA]
+      async with aiohttp.ClientSession() as session:
+         async with session.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=self.DATA) as response:
+            self.requestsTextInfo = await response.json()
 
-      self.requestsTextInfo = grequests.map(grequests.post(f'https://www.youtube.com/youtubei/v1/search?key={self.jsonData["download_key"]}', json=DATA) for DATA in self.DATA)
-      self.requestsTextInfo = self.requestsTextInfo[0].json()['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
+      self.requestsTextInfo = self.requestsTextInfo['contents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
 
       for i in range((tracksAmount)):
          try:
@@ -202,21 +187,21 @@ class YtGrabber(YtEngine):
    def __init__(self) -> None:
       super().__init__()
 
-   async def getFromYoutube(self, sourceQuery: str = None, queryType: str = None, tracksAmount: int = None, loop = None): 
+   async def getFromYoutube(self, sourceQuery: str = None, queryType: str = None, tracksAmount: int = None, loop = None):
       match queryType:
          case 'linkSource':
-            self.intermidiateData = self.getSingleAudio(sourceQuery)
+            self.intermidiateData = await self.getSingleAudio(sourceQuery)
          case 'playlist':
-            self.intermidiateData = self.getPlaylistAudios(sourceQuery)
+            self.intermidiateData = await self.getPlaylistAudios(sourceQuery)
          case 'textSource':
-            self.intermidiateData = self.getTextToAudio(sourceQuery)
+            self.intermidiateData = await self.getTextToAudio(sourceQuery)
          case 'bulkRequests':
-            self.intermidiateData = self.getManyAudios(sourceQuery, tracksAmount)
+            self.intermidiateData = await self.getManyAudios(sourceQuery, tracksAmount)
          case 'liveSource':
             self.intermidiateData = await self.getLiveStream(sourceQuery, loop)
 
       return [queryType, self.intermidiateData]
 
 # start = time.time()
-# print(asyncio.run(YtGrabber().getFromYoutube('Resonanse - HOME', 'textSource')))
+# print(asyncio.run(YtGrabber().getFromYoutube('https://www.youtube.com/watch?v=8GW6sLrK40k', 'linkSource')))
 # print(time.time() - start)

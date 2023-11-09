@@ -76,7 +76,7 @@ class MockObject(commands.Cog):
                   if not isinstance(audioObject, list) or len(audioObject) != 10: raise Exception()
                   break
       except Exception:
-         await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', ':x: Platforms engine is broken...'))
+         await notification.edit(embed=MessageHandler.embedMessage('Check FAILED...', f':x: Platforms engine is broken... \n\nError object: {source}'))
          return True
       else:
          await notification.edit(embed=MessageHandler.embedMessage('Complex bot check...', ':white_check_mark: Bot connect...\n\n' + 
