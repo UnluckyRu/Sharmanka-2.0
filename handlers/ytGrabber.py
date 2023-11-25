@@ -74,7 +74,11 @@ class YtEngine(YoutubeUpdate):
       return [self.title, self.thumbnail]
 
    async def getSingleAudio(self, sourceUrl: str = None):
-      videoID = sourceUrl.split('watch?v=')[-1]
+      try:
+         videoID = sourceUrl.split('?si=')[0].split('https://youtu.be/')[1]
+      except:
+         videoID = sourceUrl.split('watch?v=')[-1]
+         
       self.trackData, self.audioSource = await self.getTrackData(videoID)
 
       return {'rawSource': sourceUrl,

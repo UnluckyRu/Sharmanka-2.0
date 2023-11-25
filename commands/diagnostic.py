@@ -154,7 +154,7 @@ class MockObject(commands.Cog):
       CheckDataset = [['Resonanse - HOME', 'p'],  ['https://www.youtube.com/watch?v=8GW6sLrK40k', ''], ['https://www.youtube.com/playlist?list=PL8bbQ8wOE8ty19XNQGWHQ2rk17RaQnyWq', ''], 
                       ['Resonanse - HOME', 'vp'], ['https://vk.com/audio193027317_456239562_2cc61733bbf812b7d7', ''], ['https://vk.com/music/playlist/300732341_22_34160a4377a1359a51', ''], 
                       ['Resonanse - HOME', 'yp'], ['https://music.yandex.ru/album/17743313/track/89055249', ''], ['https://music.yandex.ru/users/yamusic-bestsongs/playlists/19199281', ''],
-                      ['Resonanse - HOME', 'sp'], ['https://music.yandex.ru/album/24679615', ''], ['Resonanse - HOME', 'bulkRequests']]
+                      ['Resonanse - HOME', 'sp'], ['https://music.yandex.ru/album/24679615', ''], ['Resonanse - HOME', 'bulkRequests'], ['https://youtu.be/kqW3KXNZus0?si=Lqh0nsDZovLs96I-', '']]
       
       Audiolink = "https://cs5-4v4.vkuseraudio.net/s/v1/acmp/AyyesKi97Df4cjq7cJoEvtlADaIcaHzGzTO2tr8HS7pCo1PiEG1s_4_94xFFJ464hpmS3d4jZnHbJA7IP6J1q4txe59F8izmot0X64XajJU9h_MYm-FCHMtuQpowxud3isZ4xYk1IBMFCt7sXDRypMjBMHBlSApPWSHHcSdiHUBafCWw8Q.mp3"
 

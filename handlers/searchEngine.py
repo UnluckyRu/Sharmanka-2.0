@@ -16,7 +16,7 @@ class SearchManager():
    async def findAudio(cls, searchQuery: str = None, platform: str = None, tracksAmount: int = None, loop = None) -> [str, dict]:
       cls.searchQuery = html.unescape(searchQuery).replace('\n', '')
 
-      match cls.searchQuery.startswith('https://www.youtube'):
+      match cls.searchQuery.startswith('https://www.youtube') or cls.searchQuery.startswith('https://youtu.be'):
          case True:
             match bool(re.search(r".list=|/sets/", cls.searchQuery)):
                case True:
@@ -57,7 +57,7 @@ class SearchManager():
                   return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
 
 # async def testEngine():
-#    audioObject = await SearchManager.findAudio('https://www.youtube.com/watch?v=4xDzrJKXOOY')
+#    audioObject = await SearchManager.findAudio('home resonance', 'p')
 #    print(audioObject)
 
 # asyncio.run(testEngine())
