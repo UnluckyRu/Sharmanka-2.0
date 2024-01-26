@@ -27,7 +27,7 @@ def createHashFile():
             file.writelines(f"{hash}\n")
 
     os.chdir(FULL_DIR)
-    print(f"[UPDATE] Successefully created hash file! (1/3)")
+    print(f"[UPDATE] Successefully created hash file!")
 
 def compareHash():
     InternalHash = []
@@ -46,6 +46,13 @@ def compareHash():
         return True
 
 def updatingBot():
+    try:
+        createHashFile()
+    except FileNotFoundError:
+        subprocess.run([rf"{FULL_DIR}\tools\UpdateTool.bat"])
+        print("[UPDATE] Recovery and update successfull complete! (3/3)")
+        return
+    
     if compareHash():
         subprocess.run([rf"{FULL_DIR}\tools\UpdateTool.bat"])
         print("[UPDATE] Update successfull complete! (3/3)")
