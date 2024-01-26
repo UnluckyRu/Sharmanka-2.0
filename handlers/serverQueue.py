@@ -1,7 +1,7 @@
 class Queue():
    queueList = {}
    receivedSong = None
-
+ 
    def createQueue(self, guildID: str = None) -> dict:
       match self.queueList.get(f'{guildID}'):
          case None:
