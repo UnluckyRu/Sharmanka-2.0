@@ -14,7 +14,7 @@ CONSOLE_ARGV = sys.argv[1]
 def createHashFile():
     hashList = []
 
-    for _, source in enumerate([COMMANDS_DIR, HANDLERS_DIR]):
+    for _, source in enumerate([COMMANDS_DIR, HANDLERS_DIR, UPDATETOOL_DIR]):
         os.chdir(source)
         for _, source in enumerate(os.listdir(path='.')):
             try:
