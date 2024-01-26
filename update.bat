@@ -2,8 +2,8 @@
 
 chcp 65001
 
-set /p Data="(U - Update) / (C - Create hash file) Enter U or C: "
+set /p x="(U - Update) / (C - Create hash file) Enter U or C: "
 
-python ".\handlers\updateUtility.py" %Data%
+python ".\handlers\updateUtility.py" %x%
 
 pause
