@@ -1,14 +1,13 @@
-import time
 import aiohttp
-import xmltodict
 import asyncio
+import xmltodict
 
 from hashlib import md5
 
 try:
-   from .handler import TimeHandler
+   from .handler import TimeHandler, AudioSample, PlaylistSample
 except:
-   from handler import TimeHandler
+   from handler import TimeHandler, AudioSample, PlaylistSample
 
 class YmEngine():
    def __init__(self) -> None:
@@ -51,7 +50,7 @@ class YmEngine():
       self.trackTitle = self.insertData.get('title')
       self.uploaderName = self.insertData.get('artists')[0]['name']
       self.thumbnailLink = f"https://{self.insertData.get('albums')[0]['coverUri'].replace('%%', '200x200')}"
-      self.trackDuration = TimeHandler().millisecondsConverter(self.insertData.get('durationMs'))
+      self.trackDuration = TimeHandler.millisecondsConverter(self.insertData.get('durationMs'))
 
       async with aiohttp.ClientSession(headers=self.HEADERS) as session:
          async with session.get(f'https://api.music.yandex.net/tracks/{trackID}/download-info') as response:
@@ -74,12 +73,7 @@ class YmEngine():
       self.splittedUrl = sourceUrl.split('/')[-1]
       self.metaData, self.audioSource = await self.getTrackData(self.splittedUrl)
 
-      return {'rawSource': sourceUrl,
-              'title': self.metaData[0],
-              'author': self.metaData[1],
-              'duration': self.metaData[2],
-              'thumbnail': self.metaData[3],
-              'audioSource': self.audioSource}
+      return AudioSample(sourceUrl, self.metaData[0], self.metaData[1], self.metaData[2], self.metaData[3], self.audioSource)
 
    async def getPlaylistAudios(self, sourceUrl: str = ''):
       self.taskManager = []
@@ -110,15 +104,10 @@ class YmEngine():
       self.extractInfo = await asyncio.gather(*self.taskManager)
 
       for _, source in enumerate(self.extractInfo):
-         self.playlistTracks.append({'title': source[0][0], 
-                                     'duration': source[0][2], 
-                                     'audioSource': source[1]})
+         self.playlistTracks.append(AudioSample(title=source[0][0], duration=source[0][2], audioSource=source[1]))
 
-      return {'rawSource': sourceUrl,
-              'title': self.metaData[0], 
-              'thumbnail': self.metaData[1], 
-              'playlist': self.playlistTracks}
-
+      return PlaylistSample(rawSource=sourceUrl, title=self.metaData[0], thumbnail=self.metaData[1], playlist=self.playlistTracks)
+   
    async def getTextToAudio(self, sourceText: str = ''):
       async with aiohttp.ClientSession(headers=self.HEADERS) as session:
          async with session.get(f'https://api.music.yandex.net/search?text={sourceText}&type=track&page=0') as response:
@@ -127,12 +116,7 @@ class YmEngine():
       self.requestResultInfo = self.textResultInfo.get('result')['tracks']['results'][0]["id"]
       self.metaData, self.audioSource = await self.getTrackData(self.requestResultInfo)
 
-      return {'rawSource': self.audioSource,
-              'title': self.metaData[0],
-              'author': self.metaData[1],
-              'duration': self.metaData[2],
-              'thumbnail': self.metaData[3],
-              'audioSource': self.audioSource}
+      return AudioSample(self.audioSource, self.metaData[0], self.metaData[1], self.metaData[2], self.metaData[3], self.audioSource)
 
 class YmGrabber(YmEngine):
    def __init__(self) -> None:
@@ -148,7 +132,3 @@ class YmGrabber(YmEngine):
             self.intermidiateData = await self.getTextToAudio(sourceQuery)
 
       return [queryType, self.intermidiateData]
-
-# start = time.time()
-# print(asyncio.run(YmGrabber().getFromYandex('home resonance', 'textSource')))
-# print(time.time()-start)

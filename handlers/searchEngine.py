@@ -1,4 +1,3 @@
-import asyncio
 import re
 import html
 
@@ -55,9 +54,3 @@ class SearchManager():
                   return await YmGrabber().getFromYandex(sourceQuery=cls.searchQuery, queryType='textSource')
                case 'sp' | 'SP':
                   return await YtGrabber().getFromYoutube(sourceQuery=cls.searchQuery, queryType='bulkRequests', tracksAmount=tracksAmount)
-
-# async def testEngine():
-#    audioObject = await SearchManager.findAudio('home resonance', 'p')
-#    print(audioObject)
-
-# asyncio.run(testEngine())

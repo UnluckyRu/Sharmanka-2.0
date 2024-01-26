@@ -29,10 +29,10 @@ class Radio(commands.Cog):
       
       Queue.putQueue(context.guild.id, audioObject)
       await notificationMessage.edit(embed=MessageHandler.embedMessage("Song added in queue", 
-                                                         f"Title: [{audioObject['title']}]({audioObject['rawSource']}) \n" +
-                                                         f"Uploader: {audioObject['author']}\n\n" +
-                                                         f"Duration: {audioObject['duration']}", 
-                                                         thumbnail=audioObject['thumbnail']))
+                                                         f"Title: [{audioObject.title}]({audioObject.rawSource}) \n" +
+                                                         f"Uploader: {audioObject.author}\n\n" +
+                                                         f"Duration: {audioObject.duration}", 
+                                                         thumbnail=audioObject.thumbnail))
       
       if not context.voice_client.is_playing() and not context.voice_client.is_paused():  
          await self.songPlay(context)

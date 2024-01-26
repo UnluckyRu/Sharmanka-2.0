@@ -21,7 +21,7 @@ class Queue():
    @classmethod
    def getQueue(cls, guildID: str = None):
       cls.receivedSong = cls.queueList.get(f'{guildID}').pop(0)
-      return cls.receivedSong['audioSource']
+      return cls.receivedSong.audioSource
 
    @classmethod
    def deleteQueue(cls, guildID: str = None):

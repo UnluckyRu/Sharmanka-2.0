@@ -42,10 +42,10 @@ class Search(commands.Cog):
 
       Queue.putQueue(context.guild.id, self.externalAudioObject)
       await notificationMessage.edit(embed=MessageHandler.embedMessage("Song added in queue", 
-                                                                       f"Title: [{self.externalAudioObject['title']}]({self.externalAudioObject['rawSource']}) \n" +
-                                                                       f"Uploader: {self.externalAudioObject['author']}\n\n" +
-                                                                       f"Duration: {self.externalAudioObject['duration']}",
-                                                                       thumbnail=self.externalAudioObject['thumbnail']))
+                                                                       f"Title: [{self.externalAudioObject.title}]({self.externalAudioObject.rawSource}) \n" +
+                                                                       f"Uploader: {self.externalAudioObject.author}\n\n" +
+                                                                       f"Duration: {self.externalAudioObject.duration}",
+                                                                       thumbnail=self.externalAudioObject.thumbnail))
 
       if not context.voice_client.is_playing() and not context.voice_client.is_paused():
          await self.songPlay(context)

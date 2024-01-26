@@ -4,39 +4,57 @@ import json
 import discord
 import requests
 
+from dataclasses import dataclass
+from discord.ext import commands
+
+@dataclass
+class AudioSample:
+   rawSource: str = None
+   title: str = None
+   author: str = None
+   duration: str = None
+   thumbnail: str = None
+   audioSource: str = None
+
+@dataclass
+class PlaylistSample(AudioSample):
+   playlist: list = None
+
 class TimeHandler():
    def __init__(self) -> None:
       pass
 
-   def timeConverter(self, time: int) -> str:
+   @classmethod
+   def timeConverter(cls, time: int) -> str:
       if not isinstance(time, int): time = int(time)
 
-      self.seconds = time % 60
-      self.minutes = (time // 60) % 60
-      self.hours = time // 3600
+      cls.seconds = time % 60
+      cls.minutes = (time // 60) % 60
+      cls.hours = time // 3600
 
-      if self.seconds < 10: self.seconds = f'0{self.seconds}'
-      if self.minutes < 10: self.minutes = f'0{self.minutes}'
+      if cls.seconds < 10: cls.seconds = f'0{cls.seconds}'
+      if cls.minutes < 10: cls.minutes = f'0{cls.minutes}'
 
-      if self.hours > 0:
-         return f'{self.hours}:{self.minutes}:{self.seconds}'
+      if cls.hours > 0:
+         return f'{cls.hours}:{cls.minutes}:{cls.seconds}'
       else:
-         return f'{self.minutes}:{self.seconds}'
-      
-   def millisecondsConverter(self, time: int) -> str:
+         return f'{cls.minutes}:{cls.seconds}'
+   
+   @classmethod
+   def millisecondsConverter(cls, time: int) -> str:
       time = time//1000
 
-      self.seconds = time % 60
-      self.minutes = (time // 60) % 60
-      self.hours = time // 3600
+      cls.seconds = time % 60
+      cls.minutes = (time // 60) % 60
+      cls.hours = time // 3600
 
-      if self.seconds < 10: self.seconds = f'0{self.seconds}'
-      if self.minutes < 10: self.minutes = f'0{self.minutes}'
+      if cls.seconds < 10: cls.seconds = f'0{cls.seconds}'
+      if cls.minutes < 10: cls.minutes = f'0{cls.minutes}'
 
-      if self.hours > 0:
-         return f'{self.hours}:{self.minutes}:{self.seconds}'
+      if cls.hours > 0:
+         return f'{cls.hours}:{cls.minutes}:{cls.seconds}'
       else:
-         return f'{self.minutes}:{self.seconds}'
+         return f'{cls.minutes}:{cls.seconds}'
 
 class MessageHandler():
    @classmethod
@@ -48,7 +66,7 @@ class MessageHandler():
 
 class BotConnect():
    @classmethod
-   async def botConnect(cls, context: object) -> bool:
+   async def botConnect(cls, context: commands.Context, debuggable: bool = False) -> bool:
       match context.author.voice:
          case None:
             await context.channel.send(embed=MessageHandler.embedMessage(title='Connect to the voice channel!', description='I can\'t playing music for you!'))
@@ -56,12 +74,12 @@ class BotConnect():
          case _:
             match context.voice_client:
                case None:
-                  try: 
+                  try:
                      await context.author.voice.channel.connect()
                      return False
-                  except: 
+                  except:
                      return False
-               case _: 
+               case _:
                   return False
 
 class YoutubeUpdate():
@@ -73,7 +91,6 @@ class YoutubeUpdate():
 
    @classmethod
    def checkUpdate(cls) -> None:
-      print('[Utilite] Check update...')
       # print(cls.FULL_DIR)
       if os.path.exists(cls.FULL_DIR):
          with open(cls.FULL_DIR, mode='r', encoding='UTF-8') as file:

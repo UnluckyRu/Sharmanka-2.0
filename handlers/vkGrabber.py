@@ -1,13 +1,12 @@
 import os
-import asyncio
 from vkwave.api import API
 from vkwave.client import AIOHTTPClient
 from dotenv import load_dotenv, find_dotenv
 
 try:
-   from .handler import TimeHandler
+   from .handler import TimeHandler, AudioSample, PlaylistSample
 except:
-   from handler import TimeHandler
+   from handler import TimeHandler, AudioSample, PlaylistSample
 
 load_dotenv(find_dotenv())
 
@@ -35,12 +34,12 @@ class VkEngine():
       except:
          self.audioPicture = 'https://play-lh.googleusercontent.com/tpok7cXkBGfq75J1xF9Lc5e7ydTix7bKN0Ehy87VP2555f8Lnmoj1KJNUlQ7-4lIYg4'
 
-      return {'rawSource': sourceUrl,
-              'title': self.audioData.get('title'),
-              'author': self.audioData.get('artist'),
-              'duration': TimeHandler().timeConverter(self.audioData.get('duration')),
-              'thumbnail': self.audioPicture,
-              'audioSource': self.audioData.get('url'),}
+      return AudioSample(sourceUrl, 
+                         self.audioData.get('title'), 
+                         self.audioData.get('artist'), 
+                         TimeHandler.timeConverter(self.audioData.get('duration')), 
+                         self.audioPicture, 
+                         self.audioData.get('url'))
 
    async def albumAudios(self, sourceUrl: str = None) -> dict[str, any]:
       self.vk_client = AIOHTTPClient()
@@ -67,21 +66,16 @@ class VkEngine():
       self.playlistData = self.playlistResponse.get('response')
 
       for _, source in enumerate(self.audioData.get('items')):
-         self.playlistTracks.append({'title': source.get('title'), 
-                                     'duration': TimeHandler().timeConverter(source.get('duration')), 
-                                     'audioSource': source.get('url')})
-
+         self.playlistTracks.append(AudioSample(title=source.get('title'), duration=TimeHandler.timeConverter(source.get('duration')), audioSource=source.get('url')))
+      
       try:
          self.thumbnail = self.playlistData['photo'].get('photo_300')
       except KeyError:
          self.thumbnail = self.playlistData['thumbs'][0].get('photo_300')
       else:
-         self.thumbnail = self.pictureUrl
+         self.thumbnail = 'https://play-lh.googleusercontent.com/tpok7cXkBGfq75J1xF9Lc5e7ydTix7bKN0Ehy87VP2555f8Lnmoj1KJNUlQ7-4lIYg4'
 
-      return {'rawSource': sourceUrl,
-              'title': self.playlistData.get('title'), 
-              'thumbnail': self.thumbnail, 
-              'playlist': self.playlistTracks}
+      return PlaylistSample(rawSource=sourceUrl, title=self.playlistData.get('title'), thumbnail=self.thumbnail, playlist=self.playlistTracks)
 
    async def getTextToAudio(self, sourceText: str = None) -> dict[str, any]:
       self.vk_client = AIOHTTPClient()
@@ -97,12 +91,12 @@ class VkEngine():
       except:
          self.audioPicture = 'https://play-lh.googleusercontent.com/tpok7cXkBGfq75J1xF9Lc5e7ydTix7bKN0Ehy87VP2555f8Lnmoj1KJNUlQ7-4lIYg4'
 
-      return {'rawSource': self.audioData.get('url'),
-              'title': self.audioData.get('title'),
-              'author': self.audioData.get('artist'),
-              'duration': TimeHandler().timeConverter(self.audioData.get('duration')),
-              'thumbnail': self.audioPicture,
-              'audioSource': self.audioData.get('url'),}
+      return AudioSample(self.audioData.get('url'), 
+                         self.audioData.get('title'), 
+                         self.audioData.get('artist'), 
+                         TimeHandler.timeConverter(self.audioData.get('duration')),
+                         self.audioPicture,
+                         self.audioData.get('url'),)
 
 class VkGrabber(VkEngine):
    def __init__(self) -> None:
@@ -118,5 +112,4 @@ class VkGrabber(VkEngine):
             self.intermidiateData = await self.getTextToAudio(sourceQuery)
 
       return [queryType, self.intermidiateData]
-      
-# print(asyncio.run(VkGrabber().getFromVk('https://vk.com/audio26614235_456239353_4d751d7200a6c8d90c', 'linkSource')))
+   
