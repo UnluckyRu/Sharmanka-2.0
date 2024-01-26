@@ -46,7 +46,6 @@ def compareHash():
         return True
 
 def updatingBot():
-    createHashFile()
     if compareHash():
         subprocess.run([rf"{FULL_DIR}\tools\UpdateTool.bat"])
         print("[UPDATE] Update successfull complete! (3/3)")
